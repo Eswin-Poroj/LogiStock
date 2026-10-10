@@ -94,7 +94,23 @@ export class InventarioService {
     return data;
   }
 
-  private async registrarDanio(_dto: AjusteNuevoDto, _usuario: UsuarioActual): Promise<never> {
-    throw new NotImplementedException('Pendiente: Iteración 2');
+  private async registrarDanio(dto: AjusteNuevoDto, usuario: UsuarioActual) {
+    const unidades = Math.abs(dto.cantidad);
+    if (unidades === 0) throw new BadRequestException('La cantidad de daño debe ser distinta de cero');
+    const stock = await this.leerStockObligatorio(dto.producto_id, dto.bodega_id);
+    if (stock.disponible < unidades) throw new ConflictException('No hay suficiente disponible para registrar el daño');
+    const { data: actualizado, error } = await this.supabase.db.from('stock').update({
+      disponible: stock.disponible - unidades,
+      danado: stock.danado + unidades,
+      updated_at: new Date().toISOString(),
+    }).eq('id', stock.id).gte('disponible', unidades).select('disponible, danado').maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!actualizado) throw new ConflictException('No hay suficiente disponible para registrar el daño');
+    const mov = await this.supabase.db.from('movimientos_stock').insert({
+      producto_id: dto.producto_id, bodega_id: dto.bodega_id, tipo: 'danio',
+      cantidad: -unidades, referencia: dto.motivo ?? null, usuario_id: usuario.id,
+    }).select('*').single();
+    if (mov.error || !mov.data) throw new BadRequestException(mov.error?.message ?? 'No se pudo registrar el movimiento');
+    return mov.data;
   }
 }

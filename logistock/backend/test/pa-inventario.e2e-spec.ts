@@ -51,6 +51,18 @@ describe('PA inventario', () => {
     expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 312, reservado: 0, danado: 0 });
   });
 
+  it('PA-17 registrar daño', async () => {
+    const productoId = await crearProducto(admin, `PA17-${Date.now()}`, 10, semilla.bodegaId, 10);
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/inventario/ajustes')
+      .set('Authorization', `Bearer ${semilla.operario.token}`)
+      .send({ producto_id: productoId, bodega_id: semilla.bodegaId, tipo: 'danio', cantidad: 2 });
+    expect(res.status).toBe(201);
+    expect(res.body.tipo).toBe('danio');
+    expect(res.body.cantidad).toBe(-2);
+    expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 8, danado: 2 });
+  });
+
   it('un ajuste positivo sigue en 501', async () => {
     const productoId = await crearProducto(admin, `PA16P-${Date.now()}`, 10, semilla.bodegaId, 312);
     const res = await request(app.getHttpServer())
