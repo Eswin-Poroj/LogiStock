@@ -1,8 +1,8 @@
-import { Body, Controller, Get, NotImplementedException, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { Roles, UsuarioActual } from '../../common/auth/roles.decorator';
-import { EntradaNuevaDto } from './inventario.dto';
+import { AjusteNuevoDto, EntradaNuevaDto } from './inventario.dto';
 import { EstadoStock, InventarioService } from './inventario.service';
 
 @ApiTags('Inventario')
@@ -39,7 +39,7 @@ export class InventarioController {
   // Iteración 2: ajustes y daños (mueven unidades entre disponible y dañado).
   @Roles('operario_bodega')
   @Post('ajustes')
-  ajuste() {
-    throw new NotImplementedException('Pendiente: Iteración 2');
+  ajuste(@Body() dto: AjusteNuevoDto, @CurrentUser() usuario: UsuarioActual) {
+    return this.servicio.registrarAjuste(dto, usuario);
   }
 }

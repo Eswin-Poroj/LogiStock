@@ -40,4 +40,24 @@ describe('PA inventario', () => {
       expect.objectContaining({ tipo: 'entrada', cantidad: 200, referencia: res.body.codigo }),
     ]));
   });
+
+  it('PA-16 ajuste que deja stock negativo', async () => {
+    const productoId = await crearProducto(admin, `PA16-${Date.now()}`, 10, semilla.bodegaId, 312);
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/inventario/ajustes')
+      .set('Authorization', `Bearer ${semilla.operario.token}`)
+      .send({ producto_id: productoId, bodega_id: semilla.bodegaId, tipo: 'ajuste', cantidad: -500 });
+    expect(res.status).toBe(409);
+    expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 312, reservado: 0, danado: 0 });
+  });
+
+  it('un ajuste positivo sigue en 501', async () => {
+    const productoId = await crearProducto(admin, `PA16P-${Date.now()}`, 10, semilla.bodegaId, 312);
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/inventario/ajustes')
+      .set('Authorization', `Bearer ${semilla.operario.token}`)
+      .send({ producto_id: productoId, bodega_id: semilla.bodegaId, tipo: 'ajuste', cantidad: 1 });
+    expect(res.status).toBe(501);
+    expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 312, reservado: 0, danado: 0 });
+  });
 });

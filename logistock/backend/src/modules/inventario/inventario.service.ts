@@ -1,7 +1,7 @@
-import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Injectable, NotFoundException, NotImplementedException } from '@nestjs/common';
 import { UsuarioActual } from '../../common/auth/roles.decorator';
 import { SupabaseService } from '../../common/supabase/supabase.service';
-import { EntradaNuevaDto } from './inventario.dto';
+import { AjusteNuevoDto, EntradaNuevaDto } from './inventario.dto';
 
 export type EstadoStock = 'normal' | 'stock_bajo' | 'agotado';
 
@@ -74,5 +74,27 @@ export class InventarioService {
       if (rpc.error) throw new BadRequestException(rpc.error.message);
     }
     return recepcion;
+  }
+
+  async registrarAjuste(dto: AjusteNuevoDto, usuario: UsuarioActual) {
+    if (dto.tipo === 'danio') return this.registrarDanio(dto, usuario);
+    const stock = await this.leerStockObligatorio(dto.producto_id, dto.bodega_id);
+    if (dto.cantidad < 0 && stock.disponible + dto.cantidad < 0) {
+      throw new ConflictException('El ajuste dejaría el stock negativo');
+    }
+    throw new NotImplementedException('Pendiente: Iteración 2');
+  }
+
+  private async leerStockObligatorio(productoId: string, bodegaId: string) {
+    const { data, error } = await this.supabase.db.from('stock')
+      .select('id, disponible, reservado, danado')
+      .eq('producto_id', productoId).eq('bodega_id', bodegaId).maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('No hay fila de stock');
+    return data;
+  }
+
+  private async registrarDanio(_dto: AjusteNuevoDto, _usuario: UsuarioActual): Promise<never> {
+    throw new NotImplementedException('Pendiente: Iteración 2');
   }
 }
