@@ -1,0 +1,5 @@
+# Servicios de apoyo para desarrollo local (la base de datos vive en Supabase)
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]

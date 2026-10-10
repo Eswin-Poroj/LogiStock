@@ -1,0 +1,22 @@
+digraph G { rankdir=TB; nodesep=0.45; ranksep=0.3; dpi=160; bgcolor="white"; fontname="Helvetica"; 
+ node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#EAF1F8" color="#1F4E79" penwidth=1.2 margin="0.14,0.08"];
+ edge [fontname="Helvetica" fontsize=10 color="#3A4A5B" arrowsize=0.8];
+ini [shape=circle label="" width=0.2 style=filled fillcolor="#14202E" color="#14202E"];
+fin [shape=doublecircle label="" width=0.18 style=filled fillcolor="#14202E" color="#14202E"];
+leg [shape=plain style="" label=<<table border="0" cellspacing="6"><tr><td bgcolor="#FCEFD9" border="1" color="#B7791F"> Jefe de logística </td><td bgcolor="#EAF1F8" border="1" color="#1F4E79"> Sistema </td></tr></table>>];
+j1 [label=<<b>Jefe de logística</b><br/>Selecciona pedidos listos,<br/>vehículo y conductor> fillcolor="#FCEFD9" color="#B7791F"];
+s1 [label=<<b>Sistema</b><br/>Calcula la ruta con OSRM<br/>(orden de paradas y tiempos)> fillcolor="#EAF1F8" color="#1F4E79"];
+d1 [shape=diamond label=<¿Respondió<br/>el motor?> style=filled fillcolor="#FFFFFF" color="#14202E" margin="0,0" width=2.6 height=1.2];
+s2 [label=<<b>Sistema</b><br/>Respaldo: Google Directions<br/>o caché de rutas (R2)> fillcolor="#EAF1F8" color="#1F4E79"];
+j3 [label=<<b>Jefe de logística</b><br/>Revisa la ruta propuesta> fillcolor="#FCEFD9" color="#B7791F"];
+d2 [shape=diamond label=<¿Acepta<br/>la ruta?> style=filled fillcolor="#FFFFFF" color="#14202E" margin="0,0" width=2.6 height=1.2];
+j4 [label=<<b>Jefe de logística</b><br/>Asigna el despacho> fillcolor="#FCEFD9" color="#B7791F"];
+s3 [label=<<b>Sistema</b><br/>Crea despacho y paradas;<br/>pedidos pasan a Despachado> fillcolor="#EAF1F8" color="#1F4E79"];
+ini->j1->s1->d1;
+d1->j3[label="sí"];d1->s2[label="no"];s2->j3;
+{rank=same; d1; s2}
+j3->d2;d2->j4[label="sí"];d2->j1[label="no: cambiar y recalcular" constraint=false];
+j4->s3->fin;
+leg->ini[style=invis];
+
+}

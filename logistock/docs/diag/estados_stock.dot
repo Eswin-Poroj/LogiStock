@@ -1,0 +1,19 @@
+digraph G { rankdir=LR; nodesep=0.7; ranksep=1.0; dpi=160; bgcolor="white"; fontname="Helvetica"; 
+ node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#EAF1F8" color="#1F4E79" penwidth=1.2 margin="0.14,0.08"];
+ edge [fontname="Helvetica" fontsize=10 color="#3A4A5B" arrowsize=0.8];
+
+ prov [label="Proveedor\n(externo)" shape=box style="rounded,dashed" fillcolor="white"];
+ tr [label="En tránsito" fillcolor="#FCEFD9" color="#B7791F"];
+ di [label="Disponible" fillcolor="#E3F3EA" color="#14633F"];
+ re [label="Reservado" fillcolor="#DCE8F5"];
+ da [label="Dañado" fillcolor="#FBE4DE" color="#8F2A17"];
+ sa [label="Salida\n(entregado al cliente)" shape=box style="rounded,dashed" fillcolor="white"];
+ prov -> di [label="entrada de mercancía\nregistrar_entrada() · CU-03"];
+ prov -> tr [label="orden en camino" style=dashed];
+ tr -> di [label="llega a la bodega"];
+ di -> re [label="reservar_stock()\npedido creado · CU-01/02"];
+ re -> di [label="liberar_stock()\ncancelación · CU-08" color="#8F2A17" fontcolor="#8F2A17"];
+ re -> sa [label="despacho confirmado\nCU-06"];
+ di -> da [label="ajuste por daño\nCU-04" color="#8F2A17" fontcolor="#8F2A17"];
+
+}

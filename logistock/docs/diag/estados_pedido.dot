@@ -1,0 +1,21 @@
+digraph G { rankdir=LR; nodesep=0.55; ranksep=0.75; dpi=160; bgcolor="white"; fontname="Helvetica"; 
+ node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#EAF1F8" color="#1F4E79" penwidth=1.2 margin="0.14,0.08"];
+ edge [fontname="Helvetica" fontsize=10 color="#3A4A5B" arrowsize=0.8];
+
+ ini [shape=circle label="" width=0.22 style=filled fillcolor="#14202E" color="#14202E"];
+ c [label="Creado\nstock reservado" fillcolor="#EAF1F8"];
+ p [label="En preparación\npicking en curso" fillcolor="#DCE8F5"];
+ d [label="Despachado\nasignado a una ruta" fillcolor="#FCEFD9" color="#B7791F"];
+ e [label="Entregado" fillcolor="#E3F3EA" color="#14633F"];
+ x [label="Cancelado\nstock liberado" fillcolor="#FBE4DE" color="#8F2A17"];
+ fin [shape=doublecircle label="" width=0.2 style=filled fillcolor="#14202E" color="#14202E"];
+ ini -> c [label="  crear pedido\n  (CU-01)"];
+ c -> p [label="primer escaneo\nde picking"];
+ p -> d [label="asignar despacho\n(CU-06)"];
+ d -> e [label="confirmar entrega\n(CU-07)"];
+ e -> fin;
+ c -> x [label="cancelar (CU-08)" color="#8F2A17" fontcolor="#8F2A17"];
+ p -> x [label="cancelar (CU-08)" color="#8F2A17" fontcolor="#8F2A17"];
+ x -> fin;
+
+}

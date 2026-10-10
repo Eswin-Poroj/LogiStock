@@ -1,0 +1,28 @@
+digraph G { rankdir=TB; nodesep=0.5; ranksep=0.4; dpi=160; bgcolor="white"; fontname="Helvetica"; 
+ node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#EAF1F8" color="#1F4E79" penwidth=1.2 margin="0.14,0.08"];
+ edge [fontname="Helvetica" fontsize=10 color="#3A4A5B" arrowsize=0.8];
+ini [shape=circle label="" width=0.2 style=filled fillcolor="#14202E" color="#14202E"];
+fin [shape=doublecircle label="" width=0.18 style=filled fillcolor="#14202E" color="#14202E"];
+leg [shape=plain style="" label=<<table border="0" cellspacing="6"><tr><td bgcolor="#EAF1F8" border="1" color="#1F4E79"> Sistema </td><td bgcolor="#E3F3EA" border="1" color="#14633F"> Operario de bodega </td></tr></table>>];
+s1 [label=<<b>Sistema</b><br/>Pedido confirmado: encola el trabajo en BullMQ> fillcolor="#EAF1F8" color="#1F4E79"];
+s2 [label=<<b>Sistema</b><br/>Worker crea la tarea de picking<br/>y una línea por producto reservado> fillcolor="#EAF1F8" color="#1F4E79"];
+o1 [label=<<b>Operario</b><br/>Abre el tablero y toma la tarea> fillcolor="#E3F3EA" color="#14633F"];
+o2 [label=<<b>Operario</b><br/>Va a la ubicación y escanea el SKU> fillcolor="#E3F3EA" color="#14633F"];
+s3 [label=<<b>Sistema</b><br/>Valida el SKU contra las líneas de la tarea> fillcolor="#EAF1F8" color="#1F4E79"];
+d1 [shape=diamond label=<¿SKU de la tarea<br/>y falta cantidad?> style=filled fillcolor="#FFFFFF" color="#14202E" margin="0,0" width=2.6 height=1.2];
+s4 [label=<<b>Sistema</b><br/>Rechaza el escaneo con mensaje> fillcolor="#EAF1F8" color="#1F4E79"];
+s5 [label=<<b>Sistema</b><br/>Suma lo recogido · tarea En curso<br/>pedido En preparación> fillcolor="#EAF1F8" color="#1F4E79"];
+d2 [shape=diamond label=<¿Todas las<br/>líneas completas?> style=filled fillcolor="#FFFFFF" color="#14202E" margin="0,0" width=2.6 height=1.2];
+o3 [label=<<b>Operario</b><br/>Marca la tarea como lista> fillcolor="#E3F3EA" color="#14633F"];
+s6 [label=<<b>Sistema</b><br/>Tarea completada:<br/>pedido listo para despacho> fillcolor="#EAF1F8" color="#1F4E79"];
+o4 [label=<<b>Operario</b><br/>Reporta faltante (producto no está)> fillcolor="#E3F3EA" color="#14633F"];
+s7 [label=<<b>Sistema</b><br/>Tarea con faltante:<br/>avisa al asesor de ventas> fillcolor="#EAF1F8" color="#1F4E79"];
+ini->s1->s2->o1->o2->s3->d1;
+d1->s4[label="no"];s4->o2;
+d1->s5[label="sí"];s5->d2;
+d2->o2[label="no: siguiente línea"];
+d2->o3[label="sí"];o3->s6->fin;
+o2->o4[style=dashed label="faltante"];o4->s7->fin;
+leg->ini[style=invis];
+
+}

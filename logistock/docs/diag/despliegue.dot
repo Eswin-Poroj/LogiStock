@@ -1,0 +1,30 @@
+digraph G { rankdir=LR; nodesep=0.5; ranksep=1.1; newrank=true; dpi=160; bgcolor="white"; fontname="Helvetica"; 
+ node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#EAF1F8" color="#1F4E79" penwidth=1.2 margin="0.14,0.08"];
+ edge [fontname="Helvetica" fontsize=10 color="#3A4A5B" arrowsize=0.8];
+
+ subgraph cluster_u { label="Dispositivo del usuario"; labeljust=l; color="#AAB7C4"; style=rounded; fontsize=12;
+  web [label="Aplicación web responsiva\n(navegador PC / teléfono)" shape=box3d fillcolor="#EAF1F8"]; }
+ subgraph cluster_a { label="Servidor propio (contenedores Docker)"; labeljust=l; color="#AAB7C4"; style=rounded; fontsize=12;
+  api [label="API REST · NestJS (Node 20)\n/api/v1 · Swagger /docs" shape=box3d fillcolor="#DCE8F5"];
+  wk [label="Worker de picking\nBullMQ (proceso independiente)" shape=box3d fillcolor="#DCE8F5"];
+  rd [label="Redis 7\nlocks (Redlock) y colas" shape=cylinder fillcolor="#FCEFD9" color="#B7791F"];
+  os [label="OSRM\nmotor de rutas" shape=box3d fillcolor="#E3F3EA" color="#14633F"]; }
+ subgraph cluster_s { label="Supabase (nube)"; labeljust=l; color="#AAB7C4"; style=rounded; fontsize=12;
+  pg [label="PostgreSQL 16\ntablas · RLS · funciones SQL" shape=cylinder fillcolor="#E3F3EA" color="#14633F"];
+  au [label="Supabase Auth\n(JWT)" shape=box3d fillcolor="#EAF1F8"];
+  rt [label="Supabase Realtime\n(notificaciones)" shape=box3d fillcolor="#EAF1F8"]; }
+ subgraph cluster_e { label="Servicio externo"; labeljust=l; color="#AAB7C4"; style=rounded; fontsize=12;
+  gd [label="Google Directions API\n(respaldo de rutas)" shape=box3d style="filled,dashed" fillcolor="white"]; }
+ web -> api [label="HTTPS · JSON\nBearer JWT"];
+ web -> au [label="HTTPS\ninicio de sesión"];
+ web -> rt [label="WebSocket\neventos" style=dashed];
+ api -> pg [label="HTTPS (supabase-js)\nservice_role · RPC"];
+ api -> au [label="valida JWT"];
+ api -> rd [label="TCP 6379\nlocks y encolado"];
+ wk -> rd [label="consume cola"];
+ wk -> pg [label="HTTPS"];
+ api -> os [label="HTTP\nroute / trip"];
+ api -> gd [label="HTTPS\nrespaldo" style=dashed];
+ pg -> rt [style=dashed arrowhead=none];
+
+}

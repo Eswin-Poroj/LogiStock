@@ -1,0 +1,24 @@
+digraph G { rankdir=LR; nodesep=0.35; ranksep=0.8; compound=true; dpi=160; bgcolor="white"; fontname="Helvetica"; 
+ node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#EAF1F8" color="#1F4E79" penwidth=1.2 margin="0.14,0.08"];
+ edge [fontname="Helvetica" fontsize=10 color="#3A4A5B" arrowsize=0.8];
+
+ login [label="Iniciar sesión\n(Login)" fillcolor="#14344F" fontcolor=white];
+ hub [label="Menú lateral\n(Pedidos · Inventario · Picking\nDespacho · Reportes)" shape=box fillcolor="white" style="rounded,bold"];
+ login -> hub [label=" según rol"];
+ subgraph cluster_p { label="Pedidos (asesor de ventas)"; fontsize=11; color="#AAB7C4"; style=rounded;
+   np [label="Nuevo pedido de venta\n(CU-01)"]; lin [label="Resolver línea sin stock\najustar · sustituto · backorder" fillcolor="#FBE4DE" color="#8F2A17"]; dp [label="Detalle del pedido\ncancelar (CU-08)"];
+   np -> lin [label="stock insuficiente"]; lin -> np; np -> dp [label="confirmar"]; }
+ subgraph cluster_i { label="Inventario (bodega)"; fontsize=11; color="#AAB7C4"; style=rounded;
+   inv [label="Inventario por bodega\n(CU-09)"]; ds [label="Detalle de SKU\nmovimientos"]; aj [label="Registrar ajuste o daño\n(CU-04)"]; en [label="Registrar entrada\n(CU-03)"];
+   inv -> ds; ds -> aj; inv -> en; }
+ subgraph cluster_k { label="Picking (operario)"; fontsize=11; color="#AAB7C4"; style=rounded;
+   pk [label="Tablero de picking"]; tk [label="Tarea de picking\nescanear SKU (CU-05)"]; fa [label="Reportar faltante" fillcolor="#FCEFD9" color="#B7791F"];
+   pk -> tk; tk -> fa; }
+ subgraph cluster_d { label="Despacho (jefe de logística / chofer)"; fontsize=11; color="#AAB7C4"; style=rounded;
+   ds1 [label="Planificar despacho\nelegir pedidos"]; ru [label="Ruta propuesta\n(CU-06)"]; se [label="Seguimiento y entrega\n(CU-07)"];
+   ds1 -> ru [label="calcular"]; ru -> ds1 [label="recalcular"]; ru -> se [label="asignar"]; }
+ subgraph cluster_r { label="Reportes (administrador)"; fontsize=11; color="#AAB7C4"; style=rounded;
+   rp [label="Reportes e indicadores\n(CU-10)"]; ex [label="Exportar a Excel"]; rp -> ex; }
+ hub -> np; hub -> inv; hub -> pk; hub -> ds1; hub -> rp;
+
+}

@@ -1,0 +1,15 @@
+digraph G { rankdir=TB; nodesep=0.5; ranksep=0.3; dpi=160; bgcolor="white"; fontname="Helvetica"; 
+ node [fontname="Helvetica" fontsize=11 shape=box style="rounded,filled" fillcolor="#EAF1F8" color="#1F4E79" penwidth=1.2 margin="0.14,0.08"];
+ edge [fontname="Helvetica" fontsize=10 color="#3A4A5B" arrowsize=0.8];
+ini [shape=circle label="" width=0.2 style=filled fillcolor="#14202E" color="#14202E"];
+fin [shape=doublecircle label="" width=0.18 style=filled fillcolor="#14202E" color="#14202E"];
+leg [shape=plain style="" label=<<table border="0" cellspacing="6"><tr><td bgcolor="#EEE6F7" border="1" color="#6B3FA0"> Chofer / repartidor </td><td bgcolor="#EAF1F8" border="1" color="#1F4E79"> Sistema </td></tr></table>>];
+c1 [label=<<b>Chofer</b><br/>Consulta su ruta<br/>e inicia el recorrido> fillcolor="#EEE6F7" color="#6B3FA0"];
+c2 [label=<<b>Chofer</b><br/>Entrega en la parada<br/>y confirma en la app> fillcolor="#EEE6F7" color="#6B3FA0"];
+s4 [label=<<b>Sistema</b><br/>Pedido pasa a Entregado;<br/>registra la hora real> fillcolor="#EAF1F8" color="#1F4E79"];
+d3 [shape=diamond label=<¿Quedan<br/>paradas?> style=filled fillcolor="#FFFFFF" color="#14202E" margin="0,0" width=2.6 height=1.2];
+s5 [label=<<b>Sistema</b><br/>Despacho Finalizado> fillcolor="#EAF1F8" color="#1F4E79"];
+ini->c1->c2->s4->d3;d3->c2[label="sí" constraint=false];d3->s5[label="no"];s5->fin;
+leg->ini[style=invis];
+
+}

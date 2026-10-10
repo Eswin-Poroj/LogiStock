@@ -1,0 +1,969 @@
+openapi: 3.0.3
+info:
+  title: LogiStock API
+  version: 1.0.0
+  description: |
+    API REST del sistema LogiStock (inventario, picking y rutas de despacho).
+    Proyecto Análisis de Sistemas II · UMG Quetzaltenango.
+
+    Convenciones: JSON en UTF-8, identificadores UUID, fechas ISO 8601, montos en quetzales (GTQ).
+    Todas las rutas, salvo `/health` y `/auth/login`, requieren `Authorization: Bearer <JWT de Supabase>`.
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Desarrollo local
+tags:
+  - { name: Auth, description: Sesión y usuario actual }
+  - { name: Catálogos, description: Clientes, productos, bodegas, vehículos y conductores }
+  - { name: Inventario, description: Existencias, movimientos y entradas de mercancía }
+  - { name: Pedidos, description: Pedidos de venta (CU-01, CU-02) }
+  - { name: Picking, description: Preparación de pedidos }
+  - { name: Despachos, description: Planificación de rutas y entregas }
+  - { name: Reportes, description: Indicadores operativos }
+  - { name: Sistema, description: Salud del servicio }
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [Sistema]
+      summary: Estado del servicio, base de datos y Redis
+      security: []
+      operationId: health
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  estado: { type: string, example: ok }
+                  base_datos: { type: string, example: ok }
+                  redis: { type: string, example: ok }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión
+      security: []
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Sesión iniciada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/responses/NoAutorizado' }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Usuario autenticado
+      operationId: me
+      responses:
+        '200':
+          description: Datos del usuario
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/NoAutorizado' }
+  /clientes:
+    get:
+      tags: [Catálogos]
+      summary: Listar clientes
+      operationId: listarClientes
+      parameters:
+        - { name: q, in: query, description: Búsqueda por nombre o NIT, schema: { type: string } }
+        - { $ref: '#/components/parameters/Pagina' }
+        - { $ref: '#/components/parameters/Limite' }
+      responses:
+        '200':
+          description: Lista de clientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Cliente' }
+    post:
+      tags: [Catálogos]
+      summary: Crear cliente
+      description: Roles asesor_ventas y administrador.
+      operationId: crearCliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClienteNuevo' }
+      responses:
+        '201':
+          description: Cliente creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cliente' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /productos:
+    get:
+      tags: [Catálogos]
+      summary: Listar productos
+      operationId: listarProductos
+      parameters:
+        - { name: q, in: query, description: Búsqueda por SKU o nombre, schema: { type: string } }
+        - { $ref: '#/components/parameters/Pagina' }
+        - { $ref: '#/components/parameters/Limite' }
+      responses:
+        '200':
+          description: Lista de productos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Producto' }
+    post:
+      tags: [Catálogos]
+      summary: Crear producto
+      description: Solo administrador.
+      operationId: crearProducto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductoNuevo' }
+      responses:
+        '201':
+          description: Producto creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Producto' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /bodegas:
+    get:
+      tags: [Catálogos]
+      summary: Listar bodegas
+      operationId: listarBodegas
+      responses:
+        '200':
+          description: Lista de bodegas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Bodega' }
+  /vehiculos:
+    get:
+      tags: [Catálogos]
+      summary: Listar vehículos activos
+      operationId: listarVehiculos
+      responses:
+        '200':
+          description: Lista de vehículos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Vehiculo' }
+  /conductores:
+    get:
+      tags: [Catálogos]
+      summary: Listar conductores activos
+      operationId: listarConductores
+      responses:
+        '200':
+          description: Lista de conductores
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Conductor' }
+  /inventario:
+    get:
+      tags: [Inventario]
+      summary: Existencias por bodega
+      description: Devuelve disponible, reservado, en tránsito y dañado por producto (RF-01).
+      operationId: listarInventario
+      parameters:
+        - { name: bodega_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: estado, in: query, schema: { type: string, enum: [normal, stock_bajo, agotado] } }
+        - { $ref: '#/components/parameters/Pagina' }
+        - { $ref: '#/components/parameters/Limite' }
+      responses:
+        '200':
+          description: Existencias y totales
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InventarioRespuesta' }
+  /inventario/{productoId}/movimientos:
+    get:
+      tags: [Inventario]
+      summary: Movimientos recientes de un producto
+      operationId: listarMovimientos
+      parameters:
+        - { name: productoId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bodega_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/Limite' }
+      responses:
+        '200':
+          description: Movimientos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Movimiento' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+  /inventario/entradas:
+    post:
+      tags: [Inventario]
+      summary: Registrar entrada de mercancía
+      description: Suma al disponible y deja el movimiento. Roles operario_bodega y administrador.
+      operationId: registrarEntrada
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EntradaNueva' }
+      responses:
+        '201':
+          description: Entrada registrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Recepcion' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+  /inventario/ajustes:
+    post:
+      tags: [Inventario]
+      summary: Registrar ajuste o daño
+      description: Cantidad con signo. Un daño mueve unidades de disponible a dañado.
+      operationId: registrarAjuste
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AjusteNuevo' }
+      responses:
+        '201':
+          description: Ajuste registrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Movimiento' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /pedidos:
+    get:
+      tags: [Pedidos]
+      summary: Listar pedidos
+      operationId: listarPedidos
+      parameters:
+        - { name: estado, in: query, schema: { $ref: '#/components/schemas/EstadoPedido' } }
+        - { name: cliente_id, in: query, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/Pagina' }
+        - { $ref: '#/components/parameters/Limite' }
+      responses:
+        '200':
+          description: Lista de pedidos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PedidoResumen' }
+    post:
+      tags: [Pedidos]
+      summary: Crear pedido de venta (CU-01)
+      description: |
+        Valida y reserva el stock de cada línea (CU-02) bajo un lock distribuido por SKU y bodega.
+        - Las líneas con stock suficiente quedan en estado `reservada`.
+        - Las líneas sin stock se tratan según `politica_faltantes`:
+          `rechazar` cancela todo el pedido (409), `backorder` las deja fuera del total.
+        - Si ninguna línea se puede reservar, responde 409 con el detalle por línea.
+        - Si el lock de un SKU está ocupado más de 500 ms, responde 423 y el cliente puede reintentar.
+        Rol asesor_ventas o administrador.
+      operationId: crearPedido
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PedidoNuevo' }
+            example:
+              cliente_id: 3f1c3a52-9a0e-4d6a-8a6a-0b6f2d6c1a10
+              bodega_id: 9a7b4c11-2c1d-4e55-9d6e-5b1b6a7e8f01
+              politica_faltantes: backorder
+              lineas:
+                - { producto_id: 7d1e0a10-6a5b-4a77-b2f4-1a2b3c4d5e01, cantidad: 40 }
+                - { producto_id: 7d1e0a10-6a5b-4a77-b2f4-1a2b3c4d5e02, cantidad: 25 }
+                - { producto_id: 7d1e0a10-6a5b-4a77-b2f4-1a2b3c4d5e03, cantidad: 60 }
+      responses:
+        '201':
+          description: Pedido creado en estado Creado y encolado para picking
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pedido' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '409':
+          description: Stock insuficiente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorStock' }
+        '423':
+          description: El SKU está siendo reservado por otra operación; reintentar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /pedidos/{id}:
+    get:
+      tags: [Pedidos]
+      summary: Detalle de un pedido
+      operationId: obtenerPedido
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Pedido con sus líneas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pedido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+  /pedidos/{id}/cancelar:
+    post:
+      tags: [Pedidos]
+      summary: Cancelar un pedido y liberar su stock reservado
+      description: Solo en estados Creado o En preparación.
+      operationId: cancelarPedido
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Pedido cancelado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pedido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /picking/tareas:
+    get:
+      tags: [Picking]
+      summary: Tablero de picking
+      description: Pedidos agrupados por estado para el operario.
+      operationId: listarTareasPicking
+      parameters:
+        - { name: bodega_id, in: query, schema: { type: string, format: uuid } }
+        - { name: estado, in: query, schema: { $ref: '#/components/schemas/EstadoPicking' } }
+      responses:
+        '200':
+          description: Tareas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TareaPicking' }
+  /picking/tareas/{id}:
+    get:
+      tags: [Picking]
+      summary: Detalle de una tarea con sus líneas
+      operationId: obtenerTareaPicking
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Tarea
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TareaPicking' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+  /picking/tareas/{id}/escaneos:
+    post:
+      tags: [Picking]
+      summary: Registrar un escaneo de SKU
+      description: Suma unidades recogidas a la línea que corresponde al SKU. Pasa la tarea a En curso.
+      operationId: registrarEscaneo
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EscaneoNuevo' }
+      responses:
+        '200':
+          description: Tarea actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TareaPicking' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /picking/tareas/{id}/completar:
+    post:
+      tags: [Picking]
+      summary: Marcar la tarea como lista para despacho
+      description: Exige que todas las líneas estén completas, o `con_faltante` si se reporta faltante.
+      operationId: completarTarea
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                faltante: { type: boolean, default: false }
+                nota: { type: string }
+      responses:
+        '200':
+          description: Tarea completada; el pedido queda listo para despacho (el pedido sigue En preparación)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TareaPicking' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /despachos:
+    get:
+      tags: [Despachos]
+      summary: Listar despachos
+      operationId: listarDespachos
+      parameters:
+        - { name: estado, in: query, schema: { $ref: '#/components/schemas/EstadoDespacho' } }
+      responses:
+        '200':
+          description: Lista de despachos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Despacho' }
+    post:
+      tags: [Despachos]
+      summary: Asignar despacho
+      description: Crea el despacho con las paradas en el orden indicado y pasa los pedidos a Despachado. Rol despachador o administrador.
+      operationId: crearDespacho
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DespachoNuevo' }
+      responses:
+        '201':
+          description: Despacho creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Despacho' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '403': { $ref: '#/components/responses/Prohibido' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /despachos/calcular-ruta:
+    post:
+      tags: [Despachos]
+      summary: Calcular la ruta propuesta
+      description: Ordena las paradas y estima distancia y duración con el motor de rutas (OSRM, con Google Directions como respaldo).
+      operationId: calcularRuta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RutaSolicitud' }
+      responses:
+        '200':
+          description: Ruta propuesta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ruta' }
+        '400': { $ref: '#/components/responses/Validacion' }
+        '502':
+          description: El motor de rutas no respondió
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /despachos/{id}:
+    get:
+      tags: [Despachos]
+      summary: Detalle de un despacho
+      operationId: obtenerDespacho
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Despacho con paradas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Despacho' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+  /despachos/{id}/iniciar:
+    post:
+      tags: [Despachos]
+      summary: Iniciar la ruta
+      operationId: iniciarDespacho
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Despacho en ruta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Despacho' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /despachos/{id}/paradas/{paradaId}/entregar:
+    post:
+      tags: [Despachos]
+      summary: Confirmar entrega de una parada
+      description: El pedido pasa a Entregado. Al entregar la última parada el despacho finaliza.
+      operationId: entregarParada
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: paradaId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Despacho actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Despacho' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /reportes/resumen:
+    get:
+      tags: [Reportes]
+      summary: Indicadores del periodo
+      operationId: reporteResumen
+      parameters:
+        - { $ref: '#/components/parameters/Desde' }
+        - { $ref: '#/components/parameters/Hasta' }
+        - { name: bodega_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Indicadores y despachos por día
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReporteResumen' }
+  /reportes/mas-vendidos:
+    get:
+      tags: [Reportes]
+      summary: Productos más vendidos
+      operationId: reporteMasVendidos
+      parameters:
+        - { $ref: '#/components/parameters/Desde' }
+        - { $ref: '#/components/parameters/Hasta' }
+        - { $ref: '#/components/parameters/Limite' }
+      responses:
+        '200':
+          description: Ranking
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    sku: { type: string }
+                    nombre: { type: string }
+                    unidades: { type: integer }
+  /reportes/alertas-stock:
+    get:
+      tags: [Reportes]
+      summary: Productos con stock bajo o agotados
+      operationId: reporteAlertasStock
+      parameters:
+        - { name: bodega_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Alertas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    sku: { type: string }
+                    nombre: { type: string }
+                    disponible: { type: integer }
+                    estado: { type: string, enum: [stock_bajo, agotado] }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Pagina:
+      name: pagina
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limite:
+      name: limite
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Desde:
+      name: desde
+      in: query
+      schema: { type: string, format: date }
+    Hasta:
+      name: hasta
+      in: query
+      schema: { type: string, format: date }
+  responses:
+    Validacion:
+      description: Datos de entrada inválidos
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NoAutorizado:
+      description: Falta el token o es inválido
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Prohibido:
+      description: El rol no tiene permiso para esta operación
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NoEncontrado:
+      description: El recurso no existe
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflicto:
+      description: El estado actual no permite la operación o el valor ya existe
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [statusCode, message]
+      properties:
+        statusCode: { type: integer, example: 400 }
+        message:
+          oneOf:
+            - { type: string }
+            - { type: array, items: { type: string } }
+        error: { type: string, example: Bad Request }
+    ErrorStock:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            lineas_sin_stock:
+              type: array
+              items:
+                type: object
+                properties:
+                  producto_id: { type: string, format: uuid }
+                  sku: { type: string }
+                  solicitado: { type: integer }
+                  disponible: { type: integer }
+    Rol:
+      type: string
+      enum: [asesor_ventas, operario_bodega, despachador, administrador]
+    EstadoPedido:
+      type: string
+      enum: [creado, en_preparacion, despachado, entregado, cancelado]
+    EstadoLinea:
+      type: string
+      enum: [reservada, backorder]
+    EstadoPicking:
+      type: string
+      enum: [pendiente, en_curso, completado, con_faltante]
+    EstadoDespacho:
+      type: string
+      enum: [planificado, en_ruta, finalizado, cancelado]
+    LoginRequest:
+      type: object
+      required: [correo, clave]
+      properties:
+        correo: { type: string, format: email }
+        clave: { type: string, format: password }
+    LoginResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        expira_en: { type: integer, description: Segundos de vigencia }
+        usuario: { $ref: '#/components/schemas/Usuario' }
+    Usuario:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        rol: { $ref: '#/components/schemas/Rol' }
+        bodega_id: { type: string, format: uuid, nullable: true }
+    Cliente:
+      allOf:
+        - $ref: '#/components/schemas/ClienteNuevo'
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+    ClienteNuevo:
+      type: object
+      required: [nombre, nit]
+      properties:
+        nombre: { type: string, example: Ferretería El Tornillo }
+        nit: { type: string, example: 1234567-8 }
+        telefono: { type: string }
+        direccion: { type: string }
+        municipio: { type: string, example: Quetzaltenango }
+        latitud: { type: number, format: double }
+        longitud: { type: number, format: double }
+    Producto:
+      allOf:
+        - $ref: '#/components/schemas/ProductoNuevo'
+        - type: object
+          properties:
+            id: { type: string, format: uuid }
+            activo: { type: boolean }
+    ProductoNuevo:
+      type: object
+      required: [sku, nombre, precio_unitario]
+      properties:
+        sku: { type: string, example: FER-0012 }
+        nombre: { type: string, example: Cemento gris 42.5 kg }
+        unidad: { type: string, default: unidad }
+        precio_unitario: { type: number, format: double, minimum: 0, example: 78.0 }
+        stock_minimo: { type: integer, minimum: 0, default: 0 }
+    Bodega:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string, example: Bodega Central }
+        direccion: { type: string }
+        latitud: { type: number, format: double }
+        longitud: { type: number, format: double }
+    Vehiculo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string, example: Camión 02 }
+        placa: { type: string }
+        capacidad_kg: { type: integer }
+    Conductor:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string }
+        telefono: { type: string }
+    Existencia:
+      type: object
+      properties:
+        producto_id: { type: string, format: uuid }
+        sku: { type: string }
+        nombre: { type: string }
+        ubicacion: { type: string, example: A-03-2 }
+        disponible: { type: integer }
+        reservado: { type: integer }
+        en_transito: { type: integer }
+        danado: { type: integer }
+        estado: { type: string, enum: [normal, stock_bajo, agotado] }
+    InventarioRespuesta:
+      type: object
+      properties:
+        totales:
+          type: object
+          properties:
+            disponible: { type: integer }
+            reservado: { type: integer }
+            en_transito: { type: integer }
+            danado: { type: integer }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Existencia' }
+    Movimiento:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        producto_id: { type: string, format: uuid }
+        bodega_id: { type: string, format: uuid }
+        tipo: { type: string, enum: [entrada, reserva, liberacion, despacho, ajuste, danio, transferencia] }
+        cantidad: { type: integer, description: Con signo }
+        referencia: { type: string, example: PED-000231 }
+        created_at: { type: string, format: date-time }
+    EntradaNueva:
+      type: object
+      required: [proveedor_id, bodega_id, lineas]
+      properties:
+        proveedor_id: { type: string, format: uuid }
+        bodega_id: { type: string, format: uuid }
+        lineas:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [producto_id, cantidad]
+            properties:
+              producto_id: { type: string, format: uuid }
+              cantidad: { type: integer, minimum: 1 }
+    Recepcion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        codigo: { type: string, example: OC-004118 }
+        estado: { type: string, enum: [pendiente, recibida, cancelada] }
+        created_at: { type: string, format: date-time }
+    AjusteNuevo:
+      type: object
+      required: [producto_id, bodega_id, tipo, cantidad]
+      properties:
+        producto_id: { type: string, format: uuid }
+        bodega_id: { type: string, format: uuid }
+        tipo: { type: string, enum: [ajuste, danio] }
+        cantidad: { type: integer, description: 'Positivo suma; negativo resta. En daño siempre se interpreta como unidades dañadas.' }
+        motivo: { type: string }
+    LineaNueva:
+      type: object
+      required: [producto_id, cantidad]
+      properties:
+        producto_id: { type: string, format: uuid }
+        cantidad: { type: integer, minimum: 1 }
+    PedidoNuevo:
+      type: object
+      required: [cliente_id, bodega_id, lineas]
+      properties:
+        cliente_id: { type: string, format: uuid }
+        bodega_id: { type: string, format: uuid }
+        politica_faltantes: { type: string, enum: [rechazar, backorder], default: rechazar }
+        lineas:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/LineaNueva' }
+    LineaPedido:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        producto_id: { type: string, format: uuid }
+        sku: { type: string }
+        nombre: { type: string }
+        cantidad: { type: integer }
+        precio_unitario: { type: number, format: double }
+        subtotal: { type: number, format: double }
+        estado: { $ref: '#/components/schemas/EstadoLinea' }
+    PedidoResumen:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        numero: { type: string, example: PED-000231 }
+        cliente: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoPedido' }
+        total: { type: number, format: double }
+        created_at: { type: string, format: date-time }
+    Pedido:
+      allOf:
+        - $ref: '#/components/schemas/PedidoResumen'
+        - type: object
+          properties:
+            bodega_id: { type: string, format: uuid }
+            subtotal: { type: number, format: double }
+            iva: { type: number, format: double }
+            lineas:
+              type: array
+              items: { $ref: '#/components/schemas/LineaPedido' }
+    TareaPicking:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        pedido_id: { type: string, format: uuid }
+        numero_pedido: { type: string }
+        cliente: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoPicking' }
+        operario: { type: string, nullable: true }
+        lineas:
+          type: array
+          items:
+            type: object
+            properties:
+              pedido_linea_id: { type: string, format: uuid }
+              sku: { type: string }
+              nombre: { type: string }
+              ubicacion: { type: string }
+              cantidad: { type: integer }
+              cantidad_recogida: { type: integer }
+    EscaneoNuevo:
+      type: object
+      required: [sku]
+      properties:
+        sku: { type: string, example: FER-0012 }
+        cantidad: { type: integer, minimum: 1, default: 1 }
+    RutaSolicitud:
+      type: object
+      required: [bodega_id, pedido_ids]
+      properties:
+        bodega_id: { type: string, format: uuid }
+        pedido_ids:
+          type: array
+          minItems: 1
+          items: { type: string, format: uuid }
+        salida_prevista: { type: string, format: date-time }
+    Ruta:
+      type: object
+      properties:
+        distancia_km: { type: number, format: double }
+        duracion_min: { type: integer }
+        proveedor: { type: string, enum: [osrm, google], description: Motor que calculó la ruta }
+        paradas:
+          type: array
+          items:
+            type: object
+            properties:
+              orden: { type: integer }
+              pedido_id: { type: string, format: uuid }
+              cliente: { type: string }
+              direccion: { type: string }
+              eta: { type: string, format: date-time }
+    DespachoNuevo:
+      type: object
+      required: [vehiculo_id, conductor_id, bodega_id, paradas]
+      properties:
+        vehiculo_id: { type: string, format: uuid }
+        conductor_id: { type: string, format: uuid }
+        bodega_id: { type: string, format: uuid }
+        salida_prevista: { type: string, format: date-time }
+        paradas:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [pedido_id, orden]
+            properties:
+              pedido_id: { type: string, format: uuid }
+              orden: { type: integer, minimum: 1 }
+              eta: { type: string, format: date-time }
+    Despacho:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        codigo: { type: string, example: R-14 }
+        estado: { $ref: '#/components/schemas/EstadoDespacho' }
+        vehiculo: { type: string }
+        conductor: { type: string }
+        distancia_km: { type: number, format: double }
+        duracion_min: { type: integer }
+        paradas:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              orden: { type: integer }
+              pedido_id: { type: string, format: uuid }
+              eta: { type: string, format: date-time }
+              entregada_at: { type: string, format: date-time, nullable: true }
+    ReporteResumen:
+      type: object
+      properties:
+        pedidos_despachados: { type: integer }
+        entregas_a_tiempo_pct: { type: number, format: double }
+        rotacion_inventario: { type: number, format: double }
+        pedidos_con_backorder: { type: integer }
+        despachos_por_dia:
+          type: array
+          items:
+            type: object
+            properties:
+              fecha: { type: string, format: date }
+              cantidad: { type: integer }
