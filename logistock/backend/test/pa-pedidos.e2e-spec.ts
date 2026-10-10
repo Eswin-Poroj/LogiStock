@@ -189,4 +189,82 @@ describe('PA pedidos', () => {
       await pg.end();
     }
   });
+
+  it('PA-11 SKU distintos en paralelo', async () => {
+    const a = await crearProducto(admin, `PA11A-${Date.now()}`, 10, semilla.bodegaId, 100);
+    const b = await crearProducto(admin, `PA11B-${Date.now()}`, 10, semilla.bodegaId, 100);
+    const t0 = Date.now();
+    const marcas: number[] = [];
+    const post = (productoId: string) => {
+      marcas.push(Date.now());
+      return request(app.getHttpServer())
+        .post('/api/v1/pedidos')
+        .set('Authorization', `Bearer ${semilla.asesor.token}`)
+        .send({
+          cliente_id: semilla.clienteId,
+          bodega_id: semilla.bodegaId,
+          lineas: [{ producto_id: productoId, cantidad: 10 }],
+        });
+    };
+    const [ra, rb] = await Promise.all([post(a), post(b)]);
+    console.log('PA-11 inicios', marcas, 'fin', Date.now(), 'desde', t0);
+    expect(ra.status).toBe(201);
+    expect(rb.status).toBe(201);
+  });
+
+  it('PA-12 cancelar pedido creado', async () => {
+    const productoId = await crearProducto(admin, `PA12-${Date.now()}`, 10, semilla.bodegaId, 100);
+    const creado = await request(app.getHttpServer())
+      .post('/api/v1/pedidos')
+      .set('Authorization', `Bearer ${semilla.asesor.token}`)
+      .send({
+        cliente_id: semilla.clienteId,
+        bodega_id: semilla.bodegaId,
+        lineas: [{ producto_id: productoId, cantidad: 40 }],
+      });
+    expect(creado.status).toBe(201);
+    const cancelado = await request(app.getHttpServer())
+      .post(`/api/v1/pedidos/${creado.body.id}/cancelar`)
+      .set('Authorization', `Bearer ${semilla.asesor.token}`)
+      .send({});
+    expect(cancelado.body.estado).toBe('cancelado');
+    expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 100, reservado: 0 });
+    const mov = await admin.from('movimientos_stock').select('tipo, cantidad, referencia')
+      .eq('referencia', creado.body.numero).eq('tipo', 'liberacion');
+    expect(mov.data).toEqual(expect.arrayContaining([expect.objectContaining({ tipo: 'liberacion', cantidad: 40 })]));
+  });
+
+  it('PA-13 cancelar pedido despachado', async () => {
+    const { Client } = await import('pg');
+    const productoId = await crearProducto(admin, `PA13-${Date.now()}`, 10, semilla.bodegaId, 100);
+    const creado = await request(app.getHttpServer())
+      .post('/api/v1/pedidos')
+      .set('Authorization', `Bearer ${semilla.asesor.token}`)
+      .send({
+        cliente_id: semilla.clienteId,
+        bodega_id: semilla.bodegaId,
+        lineas: [{ producto_id: productoId, cantidad: 10 }],
+      });
+    expect(creado.status).toBe(201);
+    const pg = new Client({ connectionString: process.env.DATABASE_URL });
+    await pg.connect();
+    try {
+      await pg.query(`update pedidos set estado = 'en_preparacion' where id = $1 and estado = 'creado'`, [creado.body.id]);
+      await pg.query(`update pedidos set estado = 'despachado' where id = $1 and estado = 'en_preparacion'`, [creado.body.id]);
+      const stockAntes = await leerStock(admin, productoId, semilla.bodegaId);
+      const movAntes = await admin.from('movimientos_stock').select('id', { count: 'exact', head: true }).eq('referencia', creado.body.numero);
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/pedidos/${creado.body.id}/cancelar`)
+        .set('Authorization', `Bearer ${semilla.asesor.token}`)
+        .send({});
+      expect(res.status).toBe(409);
+      const pedido = await admin.from('pedidos').select('estado').eq('id', creado.body.id).single();
+      expect(pedido.data!.estado).toBe('despachado');
+      expect(await leerStock(admin, productoId, semilla.bodegaId)).toEqual(stockAntes);
+      const movDespues = await admin.from('movimientos_stock').select('id', { count: 'exact', head: true }).eq('referencia', creado.body.numero);
+      expect(movDespues.count).toBe(movAntes.count);
+    } finally {
+      await pg.end();
+    }
+  });
 });
