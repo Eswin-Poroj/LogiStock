@@ -9,7 +9,12 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:pb": "jest --config ./test/jest-e2e.json --testPathPattern pb.e2e",
+    "test:pa": "jest --config ./test/jest-e2e.json --testPathPattern pa-",
+    "test:ps": "jest --config ./test/jest-e2e.json --testPathPattern ps.e2e",
+    "test:pr02": "jest --config ./test/jest-e2e.json --testPathPattern pr02.e2e",
+    "test:pr01": "node test/pr01.mjs"
   },
   "dependencies": {
     "@nestjs/bullmq": "^10.2.0",
@@ -33,7 +38,9 @@
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.14.0",
+    "@types/pg": "^8.11.10",
     "@types/supertest": "^6.0.2",
+    "pg": "^8.13.1",
     "jest": "^29.7.0",
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.0",
