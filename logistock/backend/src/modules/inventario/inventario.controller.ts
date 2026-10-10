@@ -1,6 +1,8 @@
-import { Controller, Get, NotImplementedException, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, NotImplementedException, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../../common/auth/roles.decorator';
+import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { Roles, UsuarioActual } from '../../common/auth/roles.decorator';
+import { EntradaNuevaDto } from './inventario.dto';
 import { EstadoStock, InventarioService } from './inventario.service';
 
 @ApiTags('Inventario')
@@ -30,8 +32,8 @@ export class InventarioController {
   // Iteración 1: usará la función SQL registrar_entrada() y creará la recepción.
   @Roles('operario_bodega')
   @Post('entradas')
-  entrada() {
-    throw new NotImplementedException('Pendiente: Iteración 1');
+  entrada(@Body() dto: EntradaNuevaDto, @CurrentUser() usuario: UsuarioActual) {
+    return this.servicio.registrarEntrada(dto, usuario);
   }
 
   // Iteración 2: ajustes y daños (mueven unidades entre disponible y dañado).

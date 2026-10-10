@@ -1,5 +1,7 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
+import { UsuarioActual } from '../../common/auth/roles.decorator';
 import { SupabaseService } from '../../common/supabase/supabase.service';
+import { EntradaNuevaDto } from './inventario.dto';
 
 export type EstadoStock = 'normal' | 'stock_bajo' | 'agotado';
 
@@ -46,5 +48,31 @@ export class InventarioService {
       .limit(limite);
     if (error) throw new HttpException(error.message, 400);
     return data;
+  }
+
+  async registrarEntrada(dto: EntradaNuevaDto, usuario: UsuarioActual) {
+    const codigo = `OC-${Date.now()}`;
+    const db = this.supabase.db;
+    const { data: recepcion, error } = await db.from('recepciones').insert({
+      codigo,
+      proveedor_id: dto.proveedor_id,
+      bodega_id: dto.bodega_id,
+      estado: 'recibida',
+      recibida_por: usuario.id,
+      recibida_at: new Date().toISOString(),
+    }).select('id, codigo, estado, created_at').single();
+    if (error || !recepcion) throw new BadRequestException(error?.message ?? 'No se pudo crear la recepción');
+    for (const linea of dto.lineas) {
+      const ins = await db.from('recepcion_lineas').insert({
+        recepcion_id: recepcion.id, producto_id: linea.producto_id, cantidad: linea.cantidad,
+      });
+      if (ins.error) throw new BadRequestException(ins.error.message);
+      const rpc = await db.rpc('registrar_entrada', {
+        p_producto: linea.producto_id, p_bodega: dto.bodega_id, p_cantidad: linea.cantidad,
+        p_referencia: recepcion.codigo, p_usuario: usuario.id,
+      });
+      if (rpc.error) throw new BadRequestException(rpc.error.message);
+    }
+    return recepcion;
   }
 }
