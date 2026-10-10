@@ -15,7 +15,11 @@ export class LockService implements OnModuleDestroy {
   private readonly ttl: number;
 
   constructor(config: ConfigService) {
-    this.redis = new Redis(config.getOrThrow<string>('redis.url'), { maxRetriesPerRequest: null });
+    this.redis = new Redis(config.getOrThrow<string>('redis.url'), {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 1000,
+      enableOfflineQueue: false,
+    });
     this.ttl = config.get<number>('lockTtlMs') ?? 5000;
     this.redlock = new Redlock([this.redis], {
       retryCount: 5,
