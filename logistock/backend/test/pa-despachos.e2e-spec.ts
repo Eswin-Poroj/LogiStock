@@ -74,4 +74,63 @@ describe('PA despachos', () => {
       }
     });
   });
+
+  describe('PA-21', () => {
+    let app: INestApplication;
+    let admin: SupabaseClient;
+    let semilla: Semilla;
+    let cuatroIds: string[];
+
+    beforeAll(async () => {
+      assertEntornoLocal();
+      admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      semilla = await sembrar(admin);
+      cuatroIds = [];
+      const base = Date.now();
+      for (let i = 0; i < 4; i++) {
+        const d = 0.01 * (i + 1);
+        const cliente = await admin.from('clientes').insert({
+          nombre: `PA21-${base}-${i}`,
+          nit: `PA21-${base}-${i}`,
+          direccion: 'Quetzaltenango',
+          latitud: 14.834700 + d,
+          longitud: -91.518100 + d,
+        }).select('id').single();
+        if (cliente.error || !cliente.data) throw cliente.error ?? new Error('sin cliente');
+        const pedido = await admin.from('pedidos').insert({
+          cliente_id: cliente.data.id,
+          bodega_id: semilla.bodegaId,
+          creado_por: semilla.asesor.id,
+        }).select('id').single();
+        if (pedido.error || !pedido.data) throw pedido.error ?? new Error('sin pedido');
+        cuatroIds.push(pedido.data.id as string);
+      }
+      app = await crearApp();
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
+
+    it('PA-21 cálculo de ruta con motor real', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/despachos/calcular-ruta')
+        .set('Authorization', `Bearer ${semilla.despachador.token}`)
+        .send({
+          bodega_id: semilla.bodegaId,
+          pedido_ids: cuatroIds,
+          salida_prevista: '2026-10-10T15:00:00.000Z',
+        });
+      if (res.status === 502) {
+        throw new Error('BLOQUEADO: el motor de rutas respondió 502. No se inventa distancia ni ETA.');
+      }
+      expect(res.status).toBe(200);
+      expect(['osrm', 'google']).toContain(res.body.proveedor);
+      expect(res.body.paradas).toHaveLength(4);
+      const etas = res.body.paradas.map((p: { eta: string }) => Date.parse(p.eta));
+      for (let i = 1; i < etas.length; i++) expect(etas[i]).toBeGreaterThan(etas[i - 1]);
+    });
+  });
 });
