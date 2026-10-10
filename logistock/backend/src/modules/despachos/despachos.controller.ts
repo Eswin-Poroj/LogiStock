@@ -1,6 +1,8 @@
-import { Controller, Get, NotImplementedException, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, NotImplementedException, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/auth/roles.decorator';
+import { RutaSolicitudDto } from './despachos.dto';
+import { DespachosService } from './despachos.service';
 
 /**
  * Iteración 3: cálculo de ruta con OSRM (respaldo Google Directions), creación del despacho
@@ -11,11 +13,16 @@ import { Roles } from '../../common/auth/roles.decorator';
 @Roles('despachador')
 @Controller('despachos')
 export class DespachosController {
+  constructor(private readonly servicio: DespachosService) {}
+
   @Get()
   listar() { throw new NotImplementedException('Pendiente: Iteración 3'); }
 
+  @HttpCode(200)
   @Post('calcular-ruta')
-  calcularRuta() { throw new NotImplementedException('Pendiente: Iteración 3'); }
+  calcularRuta(@Body() dto: RutaSolicitudDto) {
+    return this.servicio.calcularRuta(dto);
+  }
 
   @Post()
   crear() { throw new NotImplementedException('Pendiente: Iteración 3'); }
