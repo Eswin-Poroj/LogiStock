@@ -8,7 +8,7 @@ import { UsuarioActual } from '../../common/auth/roles.decorator';
 import { LockService } from '../../common/redis/lock.service';
 import { SupabaseService } from '../../common/supabase/supabase.service';
 import { PedidoNuevoDto } from './pedidos.dto';
-import { COLA_PICKING } from './pedidos.module';
+import { COLA_PICKING } from './cola-picking';
 
 interface LineaResuelta {
   producto_id: string;
