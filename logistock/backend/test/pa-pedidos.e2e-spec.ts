@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import request from 'supertest';
 import { assertEntornoLocal, crearApp } from './helpers/local';
-import { crearProducto, sembrar, Semilla } from './helpers/semilla';
+import { crearProducto, leerStock, sembrar, Semilla } from './helpers/semilla';
 
 jest.setTimeout(30000);
 
@@ -39,5 +39,24 @@ describe('PA pedidos', () => {
     expect(Number(res.body.subtotal)).toBe(3620);
     expect(Number(res.body.iva)).toBe(434.4);
     expect(Number(res.body.total)).toBe(4054.4);
+  });
+
+  it('PA-02 rechaza la línea sin stock', async () => {
+    const productoId = await crearProducto(admin, `PA02-${Date.now()}`, 10, semilla.bodegaId, 18);
+    const antes = await admin.from('pedidos').select('id', { count: 'exact', head: true }).eq('cliente_id', semilla.clienteId);
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/pedidos')
+      .set('Authorization', `Bearer ${semilla.asesor.token}`)
+      .send({
+        cliente_id: semilla.clienteId,
+        bodega_id: semilla.bodegaId,
+        politica_faltantes: 'rechazar',
+        lineas: [{ producto_id: productoId, cantidad: 60 }],
+      });
+    expect(res.status).toBe(409);
+    expect(res.body.lineas_sin_stock[0]).toMatchObject({ solicitado: 60, disponible: 18 });
+    expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 18, reservado: 0 });
+    const despues = await admin.from('pedidos').select('id', { count: 'exact', head: true }).eq('cliente_id', semilla.clienteId);
+    expect(despues.count).toBe(antes.count);
   });
 });
