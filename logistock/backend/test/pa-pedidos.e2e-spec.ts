@@ -159,4 +159,34 @@ describe('PA pedidos', () => {
       await redis.quit();
     }
   });
+
+  it('PA-09 compensación ante fallo al guardar líneas', async () => {
+    const { Client } = await import('pg');
+    const productoId = await crearProducto(admin, `PA09-${Date.now()}`, 10, semilla.bodegaId, 40);
+    const pg = new Client({ connectionString: process.env.DATABASE_URL });
+    await pg.connect();
+    const antes = await admin.from('pedidos').select('id', { count: 'exact', head: true }).eq('cliente_id', semilla.clienteId);
+    try {
+      await pg.query(`create or replace function public._prueba_fallar_lineas() returns trigger
+        language plpgsql as $$ begin raise exception 'fallo forzado de prueba'; end $$`);
+      await pg.query(`create trigger trg_prueba_fallar_lineas before insert on pedido_lineas
+        for each row execute function public._prueba_fallar_lineas()`);
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/pedidos')
+        .set('Authorization', `Bearer ${semilla.asesor.token}`)
+        .send({
+          cliente_id: semilla.clienteId,
+          bodega_id: semilla.bodegaId,
+          lineas: [{ producto_id: productoId, cantidad: 10 }],
+        });
+      expect(res.status).not.toBe(201);
+      expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 40, reservado: 0 });
+      const despues = await admin.from('pedidos').select('id', { count: 'exact', head: true }).eq('cliente_id', semilla.clienteId);
+      expect(despues.count).toBe(antes.count);
+    } finally {
+      await pg.query('drop trigger if exists trg_prueba_fallar_lineas on pedido_lineas');
+      await pg.query('drop function if exists public._prueba_fallar_lineas()');
+      await pg.end();
+    }
+  });
 });
