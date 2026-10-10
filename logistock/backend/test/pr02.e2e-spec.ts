@@ -4,7 +4,7 @@ import { INestApplication } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import request from 'supertest';
 import { assertEntornoLocal, crearApp } from './helpers/local';
-import { crearProducto, leerStock, ponerStock, sembrar, Semilla } from './helpers/semilla';
+import { crearProducto, leerStock, ponerStock, sembrar, Semilla, tokenFresco } from './helpers/semilla';
 
 jest.setTimeout(120000);
 
@@ -35,9 +35,10 @@ describe('PR-02', () => {
 
   it('PR-02 cien solicitudes al mismo SKU', async () => {
     await ponerStock(admin, productoId, semilla.bodegaId, 10, 0);
+    const token = await tokenFresco(semilla.asesor);
     const respuestas = await Promise.all(Array.from({ length: 100 }, () =>
       request(app.getHttpServer()).post('/api/v1/pedidos')
-        .set('Authorization', `Bearer ${semilla.asesor.token}`)
+        .set('Authorization', `Bearer ${token}`)
         .send({ cliente_id: semilla.clienteId, bodega_id: semilla.bodegaId, lineas: [{ producto_id: productoId, cantidad: 1 }] }),
     ));
     const aceptadas = respuestas.filter((r) => r.status === 201).length;

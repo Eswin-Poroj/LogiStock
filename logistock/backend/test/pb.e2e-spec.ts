@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Client } from 'pg';
 import { assertEntornoLocal } from './helpers/local';
+import { sincronizarPedidoNumeroSeqAlMaximo } from './helpers/pedidos-secuencia';
 import { sembrar, Semilla } from './helpers/semilla';
 
 jest.setTimeout(30000);
@@ -118,6 +119,7 @@ describe('PB base de datos', () => {
       );
       expect(a.rows[0].numero).toBe('PED-000001');
       expect(b.rows[0].numero).toBe('PED-000002');
+      await sincronizarPedidoNumeroSeqAlMaximo(c);
       console.log('PB-05 evidencia: la secuencia local pedido_numero_seq quedó adelantada');
     });
   });

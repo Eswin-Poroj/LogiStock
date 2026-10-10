@@ -52,6 +52,6 @@ export class LockService implements OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    await this.redis.quit();
+    await this.redis.quit().catch(() => undefined);
   }
 }

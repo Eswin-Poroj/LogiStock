@@ -58,6 +58,16 @@ async function actor(admin: SupabaseClient, correo: string, nombre: string, rol:
   };
 }
 
+/** JWT recién emitido; usar justo antes de ráfagas concurrentes en suite e2e larga. */
+export async function tokenFresco(actor: Pick<Actor, 'correo' | 'clave'>): Promise<string> {
+  const acceso = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: sesion, error } = await acceso.auth.signInWithPassword({ email: actor.correo, password: actor.clave });
+  if (error || !sesion.session) throw error ?? new Error('sin sesion');
+  return sesion.session.access_token;
+}
+
 export async function sembrar(admin: SupabaseClient): Promise<Semilla> {
   const bodegaId = await idDe(admin, 'bodegas', 'nombre', 'Bodega Pruebas Local', {
     nombre: 'Bodega Pruebas Local', direccion: 'Quetzaltenango',
