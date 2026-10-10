@@ -106,6 +106,7 @@ describe('PB base de datos', () => {
   it('PB-05 número de pedido secuencial', async () => {
     // Criterio: Se genera PED-000001 y los siguientes consecutivos.
     await conPg(async (c) => {
+      await c.query("delete from pedidos where numero in ('PED-000001', 'PED-000002')");
       await c.query("select setval('pedido_numero_seq', 1, false)");
       const a = await c.query(
         'insert into pedidos (cliente_id, bodega_id, creado_por) values ($1,$2,$3) returning numero',

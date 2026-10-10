@@ -1,4 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import ws from 'ws';
+
+(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket =
+  ws as unknown as typeof WebSocket;
 
 const CLAVE = 'ClavePruebas123';
 
