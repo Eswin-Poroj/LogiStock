@@ -1,7 +1,8 @@
-import { Body, Controller, Get, HttpCode, NotImplementedException, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, NotImplementedException, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../../common/auth/roles.decorator';
-import { RutaSolicitudDto } from './despachos.dto';
+import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { Roles, UsuarioActual } from '../../common/auth/roles.decorator';
+import { DespachoNuevoDto, RutaSolicitudDto } from './despachos.dto';
 import { DespachosService } from './despachos.service';
 
 /**
@@ -25,14 +26,21 @@ export class DespachosController {
   }
 
   @Post()
-  crear() { throw new NotImplementedException('Pendiente: Iteración 3'); }
+  crear(@Body() dto: DespachoNuevoDto, @CurrentUser() usuario: UsuarioActual) {
+    return this.servicio.crear(dto, usuario);
+  }
 
   @Get(':id')
-  obtener(@Param('id') _id: string) { throw new NotImplementedException('Pendiente: Iteración 3'); }
+  obtener(@Param('id', ParseUUIDPipe) id: string) {
+    return this.servicio.obtener(id);
+  }
 
   @Post(':id/iniciar')
   iniciar(@Param('id') _id: string) { throw new NotImplementedException('Pendiente: Iteración 3'); }
 
+  @HttpCode(200)
   @Post(':id/paradas/:paradaId/entregar')
-  entregar(@Param('id') _id: string, @Param('paradaId') _p: string) { throw new NotImplementedException('Pendiente: Iteración 3'); }
+  entregar(@Param('id', ParseUUIDPipe) id: string, @Param('paradaId', ParseUUIDPipe) paradaId: string) {
+    return this.servicio.entregar(id, paradaId);
+  }
 }

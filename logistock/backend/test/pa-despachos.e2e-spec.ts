@@ -1,8 +1,9 @@
 import { INestApplication } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Client } from 'pg';
 import request from 'supertest';
 import { assertEntornoLocal, crearApp } from './helpers/local';
-import { sembrar, Semilla } from './helpers/semilla';
+import { crearProducto, sembrar, Semilla } from './helpers/semilla';
 
 jest.setTimeout(30000);
 
@@ -131,6 +132,88 @@ describe('PA despachos', () => {
       expect(res.body.paradas).toHaveLength(4);
       const etas = res.body.paradas.map((p: { eta: string }) => Date.parse(p.eta));
       for (let i = 1; i < etas.length; i++) expect(etas[i]).toBeGreaterThan(etas[i - 1]);
+    });
+  });
+
+  describe('PA-23 y PA-24', () => {
+    let app: INestApplication;
+    let admin: SupabaseClient;
+    let semilla: Semilla;
+
+    beforeAll(async () => {
+      assertEntornoLocal();
+      admin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      semilla = await sembrar(admin);
+      app = await crearApp();
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
+
+    it('PA-23 pedido ya asignado a otra ruta', async () => {
+      const productoId = await crearProducto(admin, `PA23-${Date.now()}`, 10, semilla.bodegaId, 100);
+      const pedido = await request(app.getHttpServer()).post('/api/v1/pedidos')
+        .set('Authorization', `Bearer ${semilla.asesor.token}`)
+        .send({ cliente_id: semilla.clienteId, bodega_id: semilla.bodegaId, lineas: [{ producto_id: productoId, cantidad: 1 }] });
+      expect(pedido.status).toBe(201);
+      const cuerpo = {
+        vehiculo_id: semilla.vehiculoId, conductor_id: semilla.conductorId, bodega_id: semilla.bodegaId,
+        paradas: [{ pedido_id: pedido.body.id, orden: 1 }],
+      };
+      const primero = await request(app.getHttpServer()).post('/api/v1/despachos')
+        .set('Authorization', `Bearer ${semilla.despachador.token}`).send(cuerpo);
+      expect(primero.status).toBe(201);
+      const segundo = await request(app.getHttpServer()).post('/api/v1/despachos')
+        .set('Authorization', `Bearer ${semilla.despachador.token}`).send(cuerpo);
+      expect(segundo.status).toBe(409);
+      const pg = new Client({ connectionString: process.env.DATABASE_URL });
+      await pg.connect();
+      try {
+        const n = await pg.query('select count(*)::int as n from despacho_paradas where pedido_id = $1', [pedido.body.id]);
+        expect(n.rows[0].n).toBe(1);
+      } finally {
+        await pg.end();
+      }
+    });
+
+    it('PA-24 entrega de la última parada', async () => {
+      const a = await crearProducto(admin, `PA24A-${Date.now()}`, 10, semilla.bodegaId, 100);
+      const b = await crearProducto(admin, `PA24B-${Date.now()}`, 10, semilla.bodegaId, 100);
+      const pedidos = [];
+      for (const productoId of [a, b]) {
+        const res = await request(app.getHttpServer()).post('/api/v1/pedidos')
+          .set('Authorization', `Bearer ${semilla.asesor.token}`)
+          .send({ cliente_id: semilla.clienteId, bodega_id: semilla.bodegaId, lineas: [{ producto_id: productoId, cantidad: 1 }] });
+        expect(res.status).toBe(201);
+        pedidos.push(res.body.id as string);
+      }
+      const despacho = await request(app.getHttpServer()).post('/api/v1/despachos')
+        .set('Authorization', `Bearer ${semilla.despachador.token}`)
+        .send({
+          vehiculo_id: semilla.vehiculoId, conductor_id: semilla.conductorId, bodega_id: semilla.bodegaId,
+          paradas: [{ pedido_id: pedidos[0], orden: 1 }, { pedido_id: pedidos[1], orden: 2 }],
+        });
+      expect(despacho.status).toBe(201);
+      const paradas = [...despacho.body.paradas].sort((x, y) => x.orden - y.orden);
+      const primera = await request(app.getHttpServer())
+        .post(`/api/v1/despachos/${despacho.body.id}/paradas/${paradas[0].id}/entregar`)
+        .set('Authorization', `Bearer ${semilla.despachador.token}`).send({});
+      expect(primera.status).toBe(200);
+      const ped1 = await admin.from('pedidos').select('estado').eq('id', paradas[0].pedido_id).single();
+      expect(ped1.data!.estado).toBe('entregado');
+      expect(primera.body.estado).not.toBe('finalizado');
+      const segunda = await request(app.getHttpServer())
+        .post(`/api/v1/despachos/${despacho.body.id}/paradas/${paradas[1].id}/entregar`)
+        .set('Authorization', `Bearer ${semilla.despachador.token}`).send({});
+      expect(segunda.status).toBe(200);
+      expect(segunda.body.estado).toBe('finalizado');
+      for (const id of pedidos) {
+        const ped = await admin.from('pedidos').select('estado').eq('id', id).single();
+        expect(ped.data!.estado).toBe('entregado');
+      }
     });
   });
 });
