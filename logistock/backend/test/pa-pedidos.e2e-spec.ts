@@ -105,4 +105,37 @@ describe('PA pedidos', () => {
     expect(await leerStock(admin, a, semilla.bodegaId)).toMatchObject({ disponible: 0, reservado: 0 });
     expect(await leerStock(admin, b, semilla.bodegaId)).toMatchObject({ disponible: 0, reservado: 0 });
   });
+
+  it('PA-05 cantidad inválida', async () => {
+    const productoId = await crearProducto(admin, `PA05-${Date.now()}`, 10, semilla.bodegaId, 10);
+    for (const cantidad of [0, -1]) {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/pedidos')
+        .set('Authorization', `Bearer ${semilla.asesor.token}`)
+        .send({
+          cliente_id: semilla.clienteId,
+          bodega_id: semilla.bodegaId,
+          lineas: [{ producto_id: productoId, cantidad }],
+        });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('PA-06 producto inexistente o inactivo', async () => {
+    const ausente = '11111111-1111-4111-8111-111111111111';
+    const inactivo = await crearProducto(admin, `PA06-${Date.now()}`, 10, semilla.bodegaId, 10);
+    await admin.from('productos').update({ activo: false }).eq('id', inactivo);
+    for (const productoId of [ausente, inactivo]) {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/pedidos')
+        .set('Authorization', `Bearer ${semilla.asesor.token}`)
+        .send({
+          cliente_id: semilla.clienteId,
+          bodega_id: semilla.bodegaId,
+          lineas: [{ producto_id: productoId, cantidad: 1 }],
+        });
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toContain(productoId);
+    }
+  });
 });

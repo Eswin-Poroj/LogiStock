@@ -48,7 +48,12 @@ export class PedidosService {
     const { data: productos, error: eProd } = await db
       .from('productos').select('id, sku, nombre, precio_unitario').in('id', [...pedidas.keys()]).eq('activo', true);
     if (eProd) throw new BadRequestException(eProd.message);
-    if ((productos?.length ?? 0) !== pedidas.size) throw new BadRequestException('Hay productos inexistentes o inactivos');
+    const ids = [...pedidas.keys()];
+    const encontrados = new Set((productos ?? []).map((p) => p.id));
+    const faltantes = ids.filter((id) => !encontrados.has(id));
+    if (faltantes.length) {
+      throw new BadRequestException(`Hay productos inexistentes o inactivos: ${faltantes.join(', ')}`);
+    }
 
     const llaves = [...pedidas.keys()].map((p) => LockService.llaveStock(p, dto.bodega_id));
 
