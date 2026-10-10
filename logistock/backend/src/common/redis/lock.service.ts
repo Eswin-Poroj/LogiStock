@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { HttpException, Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import Redlock from 'redlock';
@@ -37,7 +37,7 @@ export class LockService implements OnModuleDestroy {
     } catch {
       throw new HttpException(
         'El producto está siendo reservado por otra operación. Intenta de nuevo.',
-        HttpStatus.LOCKED,
+        423,
       );
     }
     try {
