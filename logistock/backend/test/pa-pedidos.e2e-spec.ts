@@ -1,6 +1,9 @@
 import { INestApplication } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import Redis from 'ioredis';
+import Redlock from 'redlock';
 import request from 'supertest';
+import { LockService } from '../src/common/redis/lock.service';
 import { assertEntornoLocal, crearApp } from './helpers/local';
 import { crearProducto, leerStock, sembrar, Semilla } from './helpers/semilla';
 
@@ -136,6 +139,24 @@ describe('PA pedidos', () => {
         });
       expect(res.status).toBe(400);
       expect(JSON.stringify(res.body)).toContain(productoId);
+    }
+  });
+
+  it('PA-07 lock ocupado', async () => {
+    const productoId = await crearProducto(admin, `PA07-${Date.now()}`, 10, semilla.bodegaId, 100);
+    const redis = new Redis(process.env.REDIS_URL!);
+    const redlock = new Redlock([redis], { retryCount: 0 });
+    const lock = await redlock.acquire([LockService.llaveStock(productoId, semilla.bodegaId)], 3000);
+    try {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/pedidos')
+        .set('Authorization', `Bearer ${semilla.asesor.token}`)
+        .send({ cliente_id: semilla.clienteId, bodega_id: semilla.bodegaId, lineas: [{ producto_id: productoId, cantidad: 10 }] });
+      expect(res.status).toBe(423);
+      expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 100, reservado: 0 });
+    } finally {
+      await lock.release();
+      await redis.quit();
     }
   });
 });
