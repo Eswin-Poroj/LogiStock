@@ -2,16 +2,19 @@ import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Login } from './auth/Login'
 import { useSesion } from './auth/sesion'
-import { EntregaParada } from './despachos/EntregaParada'
 import { FormularioDespacho } from './despachos/FormularioDespacho'
+import { EntregaParada } from './despachos/EntregaParada'
+import { IniciarDespacho } from './despachos/IniciarDespacho'
+import { ListaDespachos } from './despachos/ListaDespachos'
 import { FormularioAjuste } from './inventario/FormularioAjuste'
 import { FormularioDanio } from './inventario/FormularioDanio'
 import { FormularioEntrada } from './inventario/FormularioEntrada'
 import { Inicio } from './navegacion/Inicio'
-import { PaginaModulo } from './navegacion/PaginaModulo'
 import { Shell } from './navegacion/Shell'
 import { FormularioPedido } from './pedidos/FormularioPedido'
+import { TableroPicking } from './picking/TableroPicking'
 import { TareaPicking } from './picking/TareaPicking'
+import { Reportes } from './reportes/Reportes'
 
 function Privada({ children }: { children: ReactNode }) {
   const { usuario } = useSesion()
@@ -28,13 +31,13 @@ export function App() {
       <Route path="/inventario" element={<Privada><FormularioEntrada /></Privada>} />
       <Route path="/inventario/danio" element={<Privada><FormularioDanio /></Privada>} />
       <Route path="/inventario/ajustes" element={<Privada><FormularioAjuste /></Privada>} />
-      <Route path="/picking" element={<Privada><PaginaModulo titulo="Picking" /></Privada>} />
+      <Route path="/picking" element={<Privada><TableroPicking /></Privada>} />
       <Route path="/picking/tarea" element={<Privada><TareaPicking /></Privada>} />
-      <Route path="/despachos" element={<Privada><PaginaModulo titulo="Despachos" /></Privada>} />
+      <Route path="/despachos" element={<Privada><ListaDespachos /></Privada>} />
       <Route path="/despachos/nuevo" element={<Privada><FormularioDespacho /></Privada>} />
       <Route path="/despachos/entrega" element={<Privada><EntregaParada /></Privada>} />
-      <Route path="/despachos/iniciar" element={<Privada><PaginaModulo titulo="Iniciar despacho" /></Privada>} />
-      <Route path="/reportes" element={<Privada><PaginaModulo titulo="Reportes" /></Privada>} />
+      <Route path="/despachos/iniciar" element={<Privada><IniciarDespacho /></Privada>} />
+      <Route path="/reportes" element={<Privada><Reportes /></Privada>} />
     </Routes>
   )
 }
