@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Login } from './auth/Login'
 import { useSesion } from './auth/sesion'
+import { EntregaParada } from './despachos/EntregaParada'
 import { FormularioDespacho } from './despachos/FormularioDespacho'
 import { FormularioAjuste } from './inventario/FormularioAjuste'
 import { FormularioDanio } from './inventario/FormularioDanio'
@@ -31,7 +32,7 @@ export function App() {
       <Route path="/picking/tarea" element={<Privada><TareaPicking /></Privada>} />
       <Route path="/despachos" element={<Privada><PaginaModulo titulo="Despachos" /></Privada>} />
       <Route path="/despachos/nuevo" element={<Privada><FormularioDespacho /></Privada>} />
-      <Route path="/despachos/entrega" element={<Privada><PaginaModulo titulo="Entrega" /></Privada>} />
+      <Route path="/despachos/entrega" element={<Privada><EntregaParada /></Privada>} />
       <Route path="/despachos/iniciar" element={<Privada><PaginaModulo titulo="Iniciar despacho" /></Privada>} />
       <Route path="/reportes" element={<Privada><PaginaModulo titulo="Reportes" /></Privada>} />
     </Routes>
