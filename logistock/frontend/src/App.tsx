@@ -5,6 +5,7 @@ import { useSesion } from './auth/sesion'
 import { Inicio } from './navegacion/Inicio'
 import { PaginaModulo } from './navegacion/PaginaModulo'
 import { Shell } from './navegacion/Shell'
+import { FormularioEntrada } from './inventario/FormularioEntrada'
 import { FormularioPedido } from './pedidos/FormularioPedido'
 
 function Privada({ children }: { children: ReactNode }) {
@@ -19,7 +20,7 @@ export function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Inicio />} />
       <Route path="/pedidos" element={<Privada><FormularioPedido /></Privada>} />
-      <Route path="/inventario" element={<Privada><PaginaModulo titulo="Inventario" /></Privada>} />
+      <Route path="/inventario" element={<Privada><FormularioEntrada /></Privada>} />
       <Route path="/inventario/danio" element={<Privada><PaginaModulo titulo="Daño" /></Privada>} />
       <Route path="/inventario/ajustes" element={<Privada><PaginaModulo titulo="Ajuste" /></Privada>} />
       <Route path="/picking" element={<Privada><PaginaModulo titulo="Picking" /></Privada>} />
