@@ -5,6 +5,7 @@ import { useSesion } from './auth/sesion'
 import { Inicio } from './navegacion/Inicio'
 import { PaginaModulo } from './navegacion/PaginaModulo'
 import { Shell } from './navegacion/Shell'
+import { FormularioAjuste } from './inventario/FormularioAjuste'
 import { FormularioDanio } from './inventario/FormularioDanio'
 import { FormularioEntrada } from './inventario/FormularioEntrada'
 import { FormularioPedido } from './pedidos/FormularioPedido'
@@ -23,7 +24,7 @@ export function App() {
       <Route path="/pedidos" element={<Privada><FormularioPedido /></Privada>} />
       <Route path="/inventario" element={<Privada><FormularioEntrada /></Privada>} />
       <Route path="/inventario/danio" element={<Privada><FormularioDanio /></Privada>} />
-      <Route path="/inventario/ajustes" element={<Privada><PaginaModulo titulo="Ajuste" /></Privada>} />
+      <Route path="/inventario/ajustes" element={<Privada><FormularioAjuste /></Privada>} />
       <Route path="/picking" element={<Privada><PaginaModulo titulo="Picking" /></Privada>} />
       <Route path="/picking/tarea" element={<Privada><PaginaModulo titulo="Tarea de picking" /></Privada>} />
       <Route path="/despachos" element={<Privada><PaginaModulo titulo="Despachos" /></Privada>} />
