@@ -2,13 +2,14 @@ import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Login } from './auth/Login'
 import { useSesion } from './auth/sesion'
-import { Inicio } from './navegacion/Inicio'
-import { PaginaModulo } from './navegacion/PaginaModulo'
-import { Shell } from './navegacion/Shell'
 import { FormularioAjuste } from './inventario/FormularioAjuste'
 import { FormularioDanio } from './inventario/FormularioDanio'
 import { FormularioEntrada } from './inventario/FormularioEntrada'
+import { Inicio } from './navegacion/Inicio'
+import { PaginaModulo } from './navegacion/PaginaModulo'
+import { Shell } from './navegacion/Shell'
 import { FormularioPedido } from './pedidos/FormularioPedido'
+import { TareaPicking } from './picking/TareaPicking'
 
 function Privada({ children }: { children: ReactNode }) {
   const { usuario } = useSesion()
@@ -26,7 +27,7 @@ export function App() {
       <Route path="/inventario/danio" element={<Privada><FormularioDanio /></Privada>} />
       <Route path="/inventario/ajustes" element={<Privada><FormularioAjuste /></Privada>} />
       <Route path="/picking" element={<Privada><PaginaModulo titulo="Picking" /></Privada>} />
-      <Route path="/picking/tarea" element={<Privada><PaginaModulo titulo="Tarea de picking" /></Privada>} />
+      <Route path="/picking/tarea" element={<Privada><TareaPicking /></Privada>} />
       <Route path="/despachos" element={<Privada><PaginaModulo titulo="Despachos" /></Privada>} />
       <Route path="/despachos/nuevo" element={<Privada><PaginaModulo titulo="Crear despacho" /></Privada>} />
       <Route path="/despachos/entrega" element={<Privada><PaginaModulo titulo="Entrega" /></Privada>} />
