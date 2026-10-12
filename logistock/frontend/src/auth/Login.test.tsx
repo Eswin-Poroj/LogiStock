@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
@@ -24,7 +24,9 @@ describe('login', () => {
 
   afterEach(() => {
     for (const red of redes) red.restaurar()
+    redes.length = 0
     sessionStorage.clear()
+    cleanup()
   })
 
   it('guarda el token del login y el perfil de /auth/me', async () => {
