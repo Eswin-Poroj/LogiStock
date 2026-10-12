@@ -1,1 +1,40 @@
-html, body, #root { margin: 0; }
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: sans-serif;
+}
+
+img, table, pre, input, select, button, a {
+  max-width: 100%;
+}
+
+pre { white-space: pre-wrap; word-break: break-word; }
+
+button, a {
+  min-height: 44px;
+  min-width: 44px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tabla-contenedor {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+label, input, select {
+  display: block;
+}
+
+input, select {
+  min-height: 44px;
+  width: 100%;
+}
