@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { App } from '../App'
-import { CLAVE_TOKEN, SesionProvider } from './sesion'
+import { CLAVE_TOKEN, CLAVE_USUARIO, SesionProvider } from './sesion'
 import { instalarFetch } from '../test/mockFetch'
 import { BODEGA_ID, USUARIO_ID } from '../test/ids'
 
@@ -93,6 +93,20 @@ describe('login', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('El rol de la cuenta no coincide con el seleccionado.')
     expect(sessionStorage.getItem(CLAVE_TOKEN)).toBeNull()
     expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
+  })
+
+  it('con sesión guardada redirige al inicio y no muestra el formulario', async () => {
+    sessionStorage.setItem(CLAVE_TOKEN, 'token-prueba')
+    sessionStorage.setItem(CLAVE_USUARIO, JSON.stringify(usuario))
+    const red = instalarFetch((url) => {
+      if (url.endsWith('/clientes')) return { status: 200, body: [] }
+      if (url.endsWith('/bodegas')) return { status: 200, body: [{ id: BODEGA_ID, nombre: 'Bodega Central' }] }
+      return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
+    })
+    redes.push(red)
+    renderLogin()
+    expect(screen.queryByRole('heading', { name: 'Iniciar sesión' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Nuevo pedido de venta' })).toBeInTheDocument()
   })
 
   it('explica que no hay recuperación de contraseña y no llama a la API', async () => {

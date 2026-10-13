@@ -78,6 +78,21 @@ describe('tarea de picking', () => {
     expect(JSON.parse(String(cierre?.init?.body))).toEqual({ faltante: true })
   })
 
+  it('sin id pide la tarea y la abre al escribir el id', async () => {
+    const user = userEvent.setup()
+    const red = instalarFetch((url, init) => {
+      if (url.endsWith(`/picking/tareas/${TAREA_ID}`) && (!init?.method || init.method === 'GET')) return { status: 200, body: tarea() }
+      return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
+    })
+    redes.push(red)
+    renderConSesion(<App />, 'operario_bodega', '/picking/tarea')
+    expect(screen.getByText('Elige una tarea en el tablero.')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Tarea'), { target: { value: TAREA_ID } })
+    await user.click(screen.getByRole('button', { name: 'Abrir' }))
+    expect(await screen.findByText('En curso')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Tarea')).not.toBeInTheDocument()
+  })
+
   it('el despachador ve la línea y no los botones de escritura', async () => {
     redes.push(instalarFetch(() => ({ status: 200, body: tarea() })))
     renderConSesion(<App />, 'despachador', `/picking/tarea?id=${TAREA_ID}`)

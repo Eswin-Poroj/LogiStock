@@ -21,7 +21,7 @@ export function Login() {
   const [error, setError] = useState<ApiError | null>(null)
   const [avisoRol, setAvisoRol] = useState<string | null>(null)
   const [recuperar, setRecuperar] = useState(false)
-  const [confirmado, setConfirmado] = useState(false)
+  const [confirmado, setConfirmado] = useState(() => usuario !== null)
 
   if (usuario && confirmado) return <Navigate to="/" replace />
 
