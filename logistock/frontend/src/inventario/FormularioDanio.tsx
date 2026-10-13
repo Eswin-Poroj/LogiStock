@@ -1,29 +1,36 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
 import { useListado } from '../api/useListado'
 import { useSesion } from '../auth/sesion'
 import type { AjusteNuevo, Bodega, Movimiento, Producto } from '../dominio/tipos'
 import { esUuid } from '../dominio/uuid'
+import { accesoDe } from '../navegacion/modulos'
 import { MenuInventario } from './MenuInventario'
 
 export function FormularioDanio() {
-  const { token } = useSesion()
+  const { token, usuario } = useSesion()
+  const [params] = useSearchParams()
   const bodegas = useListado<Bodega>('/bodegas', token)
   const productos = useListado<Producto>('/productos', token)
-  const [bodegaId, setBodegaId] = useState('')
-  const [productoId, setProductoId] = useState('')
+  const [bodegaId, setBodegaId] = useState(params.get('bodega_id') ?? '')
+  const [productoId, setProductoId] = useState(params.get('producto_id') ?? '')
   const [cantidad, setCantidad] = useState(1)
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState<ApiError | null>(null)
   const [movimiento, setMovimiento] = useState<Movimiento | null>(null)
   const listaError = bodegas.error ?? productos.error
-  const listo = esUuid(bodegaId) && esUuid(productoId) && Number.isInteger(cantidad) && cantidad >= 1
+  const listo = esUuid(bodegaId) && esUuid(productoId) && Number.isInteger(cantidad) && cantidad >= 1 && motivo.trim().length > 0
+
+  if (!usuario || accesoDe(usuario.rol, 'inventario') !== 'escritura') {
+    return <p role="alert">Inventario es de solo lectura para tu rol.</p>
+  }
 
   async function enviar() {
     if (!token || !listo) return
     setError(null)
-    const body: AjusteNuevo = { producto_id: productoId, bodega_id: bodegaId, tipo: 'danio', cantidad, motivo: motivo.trim() || undefined }
+    const body: AjusteNuevo = { producto_id: productoId, bodega_id: bodegaId, tipo: 'danio', cantidad, motivo: motivo.trim() }
     try {
       setMovimiento(await api<Movimiento>('/inventario/ajustes', { method: 'POST', token, body }))
     } catch (fallo) {

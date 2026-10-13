@@ -76,6 +76,7 @@ describe('pantallas 501', () => {
     fireEvent.change(screen.getByLabelText('Producto'), { target: { value: PRODUCTO_ID } })
     fireEvent.change(screen.getByLabelText('Bodega'), { target: { value: BODEGA_ID } })
     fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: '4' } })
+    fireEvent.change(screen.getByLabelText('Motivo'), { target: { value: 'Conteo' } })
     await user.click(screen.getByRole('button', { name: 'Registrar ajuste' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('El servicio respondió 501: Pendiente: Iteración 2')
     expect(screen.queryByText(/Disponible:/)).not.toBeInTheDocument()

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
 import { useListado } from '../api/useListado'
@@ -127,6 +128,12 @@ export function InventarioBodega() {
               </li>
             ))}
           </ul>
+          {escritura && (
+            <>
+              <Link to={`/inventario/ajustes?producto_id=${seleccionado.producto_id}&bodega_id=${bodegaId}`}>Registrar ajuste de este SKU</Link>
+              <Link to={`/inventario/danio?producto_id=${seleccionado.producto_id}&bodega_id=${bodegaId}`}>Registrar daño de este SKU</Link>
+            </>
+          )}
         </aside>
       )}
     </section>

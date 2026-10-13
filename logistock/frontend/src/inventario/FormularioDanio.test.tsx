@@ -50,4 +50,34 @@ describe('daño', () => {
       motivo: 'Caja rota',
     })
   })
+
+  it('no envía el daño sin motivo', async () => {
+    const red = instalarFetch((url) => {
+      if (url.endsWith('/bodegas')) return { status: 200, body: [{ id: BODEGA_ID, nombre: 'Bodega Central' }] }
+      if (url.endsWith('/productos')) return { status: 200, body: [{ id: PRODUCTO_ID, sku: 'FER-0012', nombre: 'Cemento gris 42.5 kg', unidad: 'unidad', precio_unitario: 78, stock_minimo: 0, activo: true }] }
+      return { status: 500, body: { statusCode: 500, message: 'no', error: 'Error' } }
+    })
+    redes.push(red)
+    renderConSesion(<App />, 'operario_bodega', '/inventario/danio')
+    await screen.findByRole('option', { name: 'Bodega Central' })
+    await screen.findByRole('option', { name: 'Cemento gris 42.5 kg' })
+    fireEvent.change(screen.getByLabelText('Bodega'), { target: { value: BODEGA_ID } })
+    fireEvent.change(screen.getByLabelText('Producto'), { target: { value: PRODUCTO_ID } })
+    fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: '1' } })
+    expect(screen.getByRole('button', { name: 'Registrar daño' })).toBeDisabled()
+  })
+
+  it('rellena producto y bodega desde la ficha del SKU', async () => {
+    const red = instalarFetch((url) => {
+      if (url.endsWith('/bodegas')) return { status: 200, body: [{ id: BODEGA_ID, nombre: 'Bodega Central' }] }
+      if (url.endsWith('/productos')) return { status: 200, body: [{ id: PRODUCTO_ID, sku: 'FER-0012', nombre: 'Cemento gris 42.5 kg', unidad: 'unidad', precio_unitario: 78, stock_minimo: 0, activo: true }] }
+      return { status: 500, body: { statusCode: 500, message: 'no', error: 'Error' } }
+    })
+    redes.push(red)
+    renderConSesion(<App />, 'operario_bodega', `/inventario/danio?producto_id=${PRODUCTO_ID}&bodega_id=${BODEGA_ID}`)
+    await screen.findByRole('option', { name: 'Bodega Central' })
+    await screen.findByRole('option', { name: 'Cemento gris 42.5 kg' })
+    expect(screen.getByLabelText('Producto')).toHaveValue(PRODUCTO_ID)
+    expect(screen.getByLabelText('Bodega')).toHaveValue(BODEGA_ID)
+  })
 })

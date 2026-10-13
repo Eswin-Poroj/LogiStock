@@ -1,21 +1,28 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
 import { useSesion } from '../auth/sesion'
 import type { AjusteNuevo, Movimiento } from '../dominio/tipos'
 import { esUuid } from '../dominio/uuid'
+import { accesoDe } from '../navegacion/modulos'
 import { MenuInventario } from './MenuInventario'
 
 export function FormularioAjuste() {
-  const { token } = useSesion()
-  const [productoId, setProductoId] = useState('')
-  const [bodegaId, setBodegaId] = useState('')
+  const { token, usuario } = useSesion()
+  const [params] = useSearchParams()
+  const [productoId, setProductoId] = useState(params.get('producto_id') ?? '')
+  const [bodegaId, setBodegaId] = useState(params.get('bodega_id') ?? '')
   const [cantidadTexto, setCantidadTexto] = useState('0')
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState<ApiError | null>(null)
   const [movimiento, setMovimiento] = useState<Movimiento | null>(null)
   const cantidad = Number(cantidadTexto)
-  const listo = esUuid(productoId) && esUuid(bodegaId) && Number.isInteger(cantidad) && cantidad !== 0
+  const listo = esUuid(productoId) && esUuid(bodegaId) && Number.isInteger(cantidad) && cantidad !== 0 && motivo.trim().length > 0
+
+  if (!usuario || accesoDe(usuario.rol, 'inventario') !== 'escritura') {
+    return <p role="alert">Inventario es de solo lectura para tu rol.</p>
+  }
 
   async function enviar() {
     if (!token || !listo) return
@@ -26,7 +33,7 @@ export function FormularioAjuste() {
       bodega_id: bodegaId,
       tipo: 'ajuste',
       cantidad,
-      motivo: motivo.trim() || undefined,
+      motivo: motivo.trim(),
     }
     try {
       setMovimiento(await api<Movimiento>('/inventario/ajustes', { method: 'POST', token, body }))

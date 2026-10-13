@@ -77,4 +77,18 @@ describe('ajuste', () => {
     expect(await screen.findByText('Movimiento eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')).toBeInTheDocument()
     expect(screen.getByText('Cantidad -3')).toBeInTheDocument()
   })
+
+  it('no envía el ajuste sin motivo', () => {
+    renderConSesion(<App />, 'operario_bodega', '/inventario/ajustes')
+    fireEvent.change(screen.getByLabelText('Producto'), { target: { value: PRODUCTO_ID } })
+    fireEvent.change(screen.getByLabelText('Bodega'), { target: { value: BODEGA_ID } })
+    fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: '4' } })
+    expect(screen.getByRole('button', { name: 'Registrar ajuste' })).toBeDisabled()
+  })
+
+  it('rellena producto y bodega desde la ficha del SKU', () => {
+    renderConSesion(<App />, 'operario_bodega', `/inventario/ajustes?producto_id=${PRODUCTO_ID}&bodega_id=${BODEGA_ID}`)
+    expect(screen.getByLabelText('Producto')).toHaveValue(PRODUCTO_ID)
+    expect(screen.getByLabelText('Bodega')).toHaveValue(BODEGA_ID)
+  })
 })
