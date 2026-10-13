@@ -16,6 +16,7 @@ describe('pantallas 501', () => {
 
   it('los tres reportes muestran Pendiente y ninguna cifra inventada', async () => {
     const red = instalarFetch((url) => {
+      if (url.endsWith('/bodegas')) return { status: 200, body: [] }
       expect(['/reportes/resumen', '/reportes/mas-vendidos', '/reportes/alertas-stock'].some((ruta) => url.endsWith(ruta))).toBe(true)
       return cuerpo('Pendiente')
     })
