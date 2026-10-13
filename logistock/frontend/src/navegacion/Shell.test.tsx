@@ -9,10 +9,10 @@ import { Inicio } from './Inicio'
 import { Shell } from './Shell'
 
 const VISIBLES: Record<Rol, string[]> = {
-  administrador: ['Pedidos', 'Inventario', 'Picking', 'Despachos', 'Reportes'],
-  asesor_ventas: ['Pedidos'],
+  administrador: ['Pedidos', 'Inventario', 'Picking', 'Despacho', 'Reportes'],
+  asesor_ventas: ['Pedidos', 'Inventario'],
   operario_bodega: ['Inventario', 'Picking'],
-  despachador: ['Picking', 'Despachos'],
+  despachador: ['Picking', 'Despacho'],
 }
 
 describe('shell PU-03', () => {
@@ -41,9 +41,9 @@ describe('shell PU-03', () => {
   it('la ruta de entrada es el primer módulo del rol', () => {
     const casos: { rol: Rol; destino: string }[] = [
       { rol: 'asesor_ventas', destino: 'Destino pedidos' },
-      { rol: 'operario_bodega', destino: 'Destino inventario' },
-      { rol: 'despachador', destino: 'Destino picking' },
-      { rol: 'administrador', destino: 'Destino pedidos' },
+      { rol: 'operario_bodega', destino: 'Destino picking' },
+      { rol: 'despachador', destino: 'Destino despachos' },
+      { rol: 'administrador', destino: 'Destino reportes' },
     ]
     for (const caso of casos) {
       const vista = renderConSesion(
@@ -52,6 +52,8 @@ describe('shell PU-03', () => {
           <Route path="/pedidos" element={<p>Destino pedidos</p>} />
           <Route path="/inventario" element={<p>Destino inventario</p>} />
           <Route path="/picking" element={<p>Destino picking</p>} />
+          <Route path="/despachos" element={<p>Destino despachos</p>} />
+          <Route path="/reportes" element={<p>Destino reportes</p>} />
         </Routes>,
         caso.rol,
         '/',
