@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../App'
 import { instalarFetch } from '../test/mockFetch'
 import { renderConSesion } from '../test/renderConSesion'
-import { BODEGA_ID, DESPACHO_ID, PRODUCTO_ID } from '../test/ids'
+import { BODEGA_ID, DESPACHO_ID, PARADA_ID, PEDIDO_ID, PRODUCTO_ID } from '../test/ids'
 
 function cuerpo(mensaje: string) {
   return { status: 501, body: { statusCode: 501, message: mensaje, error: 'Not Implemented' } }
@@ -53,6 +53,9 @@ describe('pantallas 501', () => {
   it('iniciar ruta muestra el 501 y no pasa el despacho a en_ruta', async () => {
     const user = userEvent.setup()
     const red = instalarFetch((url, init) => {
+      if (url.endsWith(`/despachos/${DESPACHO_ID}`) && (!init?.method || init.method === 'GET')) {
+        return { status: 200, body: { id: DESPACHO_ID, codigo: 'R-14', estado: 'planificado', vehiculo: 'Camión 02', conductor: 'Luis', paradas: [{ id: PARADA_ID, orden: 1, pedido_id: PEDIDO_ID }] } }
+      }
       expect(url).toContain(`/despachos/${DESPACHO_ID}/iniciar`)
       expect(init?.method).toBe('POST')
       return cuerpo('Pendiente: Iteración 3')
