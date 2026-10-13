@@ -9,6 +9,7 @@ import { ListaDespachos } from './despachos/ListaDespachos'
 import { FormularioAjuste } from './inventario/FormularioAjuste'
 import { FormularioDanio } from './inventario/FormularioDanio'
 import { FormularioEntrada } from './inventario/FormularioEntrada'
+import { InventarioBodega } from './inventario/InventarioBodega'
 import { Inicio } from './navegacion/Inicio'
 import { Shell } from './navegacion/Shell'
 import { FormularioPedido } from './pedidos/FormularioPedido'
@@ -30,7 +31,8 @@ export function App() {
       <Route path="/" element={<Inicio />} />
       <Route path="/pedidos/:id" element={<Privada><DetallePedido /></Privada>} />
       <Route path="/pedidos" element={<Privada><FormularioPedido /></Privada>} />
-      <Route path="/inventario" element={<Privada><FormularioEntrada /></Privada>} />
+      <Route path="/inventario" element={<Privada><InventarioBodega /></Privada>} />
+      <Route path="/inventario/entradas" element={<Privada><FormularioEntrada /></Privada>} />
       <Route path="/inventario/danio" element={<Privada><FormularioDanio /></Privada>} />
       <Route path="/inventario/ajustes" element={<Privada><FormularioAjuste /></Privada>} />
       <Route path="/picking" element={<Privada><TableroPicking /></Privada>} />

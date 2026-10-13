@@ -37,7 +37,7 @@ export function FormularioAjuste() {
 
   return (
     <section>
-      <MenuInventario />
+      <MenuInventario escritura />
       <h1>Ajuste</h1>
       {error && <AvisoApi error={error} />}
       <label>

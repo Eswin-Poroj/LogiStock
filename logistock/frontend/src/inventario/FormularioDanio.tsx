@@ -33,7 +33,7 @@ export function FormularioDanio() {
 
   return (
     <section>
-      <MenuInventario />
+      <MenuInventario escritura />
       <h1>Daño</h1>
       {(listaError || error) && <AvisoApi error={(listaError ?? error) as ApiError} />}
       <label>

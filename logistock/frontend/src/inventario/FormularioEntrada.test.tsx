@@ -21,7 +21,7 @@ describe('entrada', () => {
       return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
     })
     redes.push(red)
-    renderConSesion(<App />, 'operario_bodega', '/inventario')
+    renderConSesion(<App />, 'operario_bodega', '/inventario/entradas')
     expect(screen.getByRole('button', { name: 'Registrar entrada' })).toBeDisabled()
     fireEvent.change(screen.getByLabelText('Proveedor'), { target: { value: PROVEEDOR_ID } })
     await screen.findByRole('option', { name: 'Bodega Central' })
@@ -49,7 +49,7 @@ describe('entrada', () => {
       return { status: 400, body: { statusCode: 400, message: 'No se pudo crear la recepción', error: 'Bad Request' } }
     })
     redes.push(red)
-    renderConSesion(<App />, 'operario_bodega', '/inventario')
+    renderConSesion(<App />, 'operario_bodega', '/inventario/entradas')
     fireEvent.change(screen.getByLabelText('Proveedor'), { target: { value: PROVEEDOR_ID } })
     await screen.findByRole('option', { name: 'Bodega Central' })
     await screen.findByRole('option', { name: 'Cemento gris 42.5 kg' })

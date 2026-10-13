@@ -5,10 +5,11 @@ import { useListado } from '../api/useListado'
 import { useSesion } from '../auth/sesion'
 import type { Bodega, EntradaNueva, Producto, Recepcion } from '../dominio/tipos'
 import { esUuid } from '../dominio/uuid'
+import { accesoDe } from '../navegacion/modulos'
 import { MenuInventario } from './MenuInventario'
 
 export function FormularioEntrada() {
-  const { token } = useSesion()
+  const { token, usuario } = useSesion()
   const bodegas = useListado<Bodega>('/bodegas', token)
   const productos = useListado<Producto>('/productos', token)
   const [proveedorId, setProveedorId] = useState('')
@@ -19,6 +20,10 @@ export function FormularioEntrada() {
   const [recepcion, setRecepcion] = useState<Recepcion | null>(null)
   const listaError = bodegas.error ?? productos.error
   const listo = esUuid(proveedorId) && esUuid(bodegaId) && esUuid(productoId) && Number.isInteger(cantidad) && cantidad >= 1
+
+  if (!usuario || accesoDe(usuario.rol, 'inventario') !== 'escritura') {
+    return <p role="alert">Inventario es de solo lectura para tu rol.</p>
+  }
 
   async function enviar() {
     if (!token || !listo) return
@@ -33,7 +38,7 @@ export function FormularioEntrada() {
 
   return (
     <section>
-      <MenuInventario />
+      <MenuInventario escritura />
       <h1>Entrada</h1>
       {(listaError || error) && <AvisoApi error={(listaError ?? error) as ApiError} />}
       <label>
