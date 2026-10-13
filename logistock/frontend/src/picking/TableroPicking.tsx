@@ -5,13 +5,17 @@ import { ApiError, api } from '../api/cliente'
 import { useSesion } from '../auth/sesion'
 import { quetzales } from '../dominio/quetzales'
 import type { PedidoResumen, TareaPicking } from '../dominio/tipos'
+import { accesoDe } from '../navegacion/modulos'
 import { agruparTareas, tituloColumna } from './columnas'
 import type { ColumnaPedido } from './columnas'
+import { DetalleTarea } from './DetalleTarea'
 import { leerTareas } from './leerTareas'
 import { MenuPicking } from './MenuPicking'
 
 export function TableroPicking() {
-  const { token } = useSesion()
+  const { token, usuario } = useSesion()
+  const [tareaId, setTareaId] = useState<string | null>(null)
+  const lectura = !usuario || accesoDe(usuario.rol, 'picking') !== 'escritura'
   const [tareas, setTareas] = useState<TareaPicking[]>([])
   const [despachados, setDespachados] = useState<PedidoResumen[]>([])
   const [entregados, setEntregados] = useState<PedidoResumen[]>([])
@@ -60,6 +64,7 @@ export function TableroPicking() {
             {columna.tareas.map((tarea) => (
               <article key={tarea.id}>
                 <Link to={`/picking/tarea?id=${tarea.id}`}>{tarea.numero_pedido ?? tarea.pedido_id}</Link>
+                <button type="button" onClick={() => setTareaId(tarea.id)}>Abrir</button>
                 {tarea.cliente && <p>{tarea.cliente}</p>}
               </article>
             ))}
@@ -73,6 +78,7 @@ export function TableroPicking() {
           </section>
         ))}
       </div>
+      <DetalleTarea tareaId={tareaId} lectura={lectura} onActualizada={(tarea) => setTareas((actuales) => actuales.map((fila) => fila.id === tarea.id ? { ...fila, ...tarea } : fila))} />
     </section>
   )
 }

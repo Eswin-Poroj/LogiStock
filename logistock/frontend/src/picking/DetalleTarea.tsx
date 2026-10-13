@@ -1,0 +1,86 @@
+import { useEffect, useState } from 'react'
+import { AvisoApi } from '../api/AvisoApi'
+import { ApiError, api } from '../api/cliente'
+import { useSesion } from '../auth/sesion'
+import type { CompletarPicking, EscaneoNuevo, EstadoPicking, TareaPicking } from '../dominio/tipos'
+import { esUuid } from '../dominio/uuid'
+
+export function etiquetaEstadoPicking(estado: EstadoPicking): 'Pendiente' | 'En curso' | 'Completada' | 'Con faltante' {
+  if (estado === 'pendiente') return 'Pendiente'
+  if (estado === 'en_curso') return 'En curso'
+  if (estado === 'completado') return 'Completada'
+  return 'Con faltante'
+}
+
+const NOTA: Record<EstadoPicking, string> = {
+  pendiente: 'El pedido sigue en Creado hasta el primer escaneo válido.',
+  en_curso: 'El primer escaneo pasó el pedido a En preparación.',
+  completado: 'La tarea está completa. El pedido sigue en En preparación hasta el despacho.',
+  con_faltante: 'La tarea quedó con faltante. El sistema avisa al asesor de ventas.',
+}
+
+export function DetalleTarea({ tareaId, lectura, onActualizada }: { tareaId: string | null; lectura: boolean; onActualizada: (tarea: TareaPicking) => void }) {
+  const { token } = useSesion()
+  const [tarea, setTarea] = useState<TareaPicking | null>(null)
+  const [sku, setSku] = useState('')
+  const [cantidad, setCantidad] = useState(1)
+  const [error, setError] = useState<ApiError | null>(null)
+  const lista = tarea && tarea.lineas.every((linea) => linea.cantidad_recogida >= linea.cantidad)
+
+  useEffect(() => {
+    if (!token || !tareaId || !esUuid(tareaId)) return
+    let vivo = true
+    api<TareaPicking>(`/picking/tareas/${tareaId}`, { token })
+      .then((dato) => { if (vivo) setTarea(dato) })
+      .catch((fallo: unknown) => { if (vivo && fallo instanceof ApiError) setError(fallo) })
+    return () => { vivo = false }
+  }, [token, tareaId])
+
+  function aplicar(dato: TareaPicking) {
+    setTarea(dato)
+    onActualizada(dato)
+  }
+
+  async function escanear() {
+    if (!token || !tareaId || sku.trim() === '' || !Number.isInteger(cantidad) || cantidad < 1) return
+    setError(null)
+    const body: EscaneoNuevo = { sku: sku.trim(), cantidad }
+    try {
+      aplicar(await api<TareaPicking>(`/picking/tareas/${tareaId}/escaneos`, { method: 'POST', token, body }))
+    } catch (fallo) {
+      if (fallo instanceof ApiError) setError(fallo)
+    }
+  }
+
+  async function cerrar(faltante: boolean) {
+    if (!token || !tareaId) return
+    setError(null)
+    const body: CompletarPicking = { faltante }
+    try {
+      aplicar(await api<TareaPicking>(`/picking/tareas/${tareaId}/completar`, { method: 'POST', token, body }))
+    } catch (fallo) {
+      if (fallo instanceof ApiError) setError(fallo)
+    }
+  }
+
+  if (!tareaId) return null
+  return (
+    <section>
+      {error && <AvisoApi error={error} />}
+      {tarea && <p>{etiquetaEstadoPicking(tarea.estado)}</p>}
+      {tarea && <p>{NOTA[tarea.estado]}</p>}
+      {tarea?.lineas.map((linea) => (
+        <p key={linea.pedido_linea_id}><span>{linea.sku}</span> {linea.nombre} {linea.ubicacion ?? ''} <span>{linea.cantidad_recogida} / {linea.cantidad}</span></p>
+      ))}
+      {!lectura && (
+        <>
+          <label>SKU<input value={sku} onChange={(evento) => setSku(evento.target.value)} /></label>
+          <label>Cantidad<input type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} /></label>
+          <button type="button" onClick={() => void escanear()}>Confirmar escaneo</button>
+          <button type="button" onClick={() => void cerrar(true)}>Reportar faltante</button>
+          <button type="button" disabled={!lista} onClick={() => void cerrar(false)}>Marcar como listo para despacho</button>
+        </>
+      )}
+    </section>
+  )
+}
