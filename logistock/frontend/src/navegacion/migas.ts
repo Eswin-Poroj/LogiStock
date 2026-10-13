@@ -1,0 +1,16 @@
+export function migasDe(pathname: string): string {
+  if (pathname.startsWith('/pedidos/')) return 'Ventas / Pedidos / Detalle'
+  if (pathname === '/pedidos') return 'Ventas / Pedidos / Nuevo'
+  if (pathname.startsWith('/inventario/entradas')) return 'Almacén / Inventario / Entrada'
+  if (pathname.startsWith('/inventario/ajustes')) return 'Almacén / Inventario / Ajuste'
+  if (pathname.startsWith('/inventario/danio')) return 'Almacén / Inventario / Daño'
+  if (pathname.startsWith('/inventario')) return 'Almacén / Inventario'
+  if (pathname.startsWith('/picking/tarea')) return 'Operaciones / Picking / Tarea'
+  if (pathname.startsWith('/picking')) return 'Operaciones / Picking'
+  if (pathname.startsWith('/despachos/seguimiento')) return 'Operaciones / Despacho / Seguimiento'
+  if (pathname.startsWith('/despachos/iniciar')) return 'Operaciones / Despacho / Iniciar'
+  if (pathname.startsWith('/despachos/entrega')) return 'Operaciones / Despacho / Entrega'
+  if (pathname.startsWith('/despachos')) return 'Operaciones / Despacho'
+  if (pathname.startsWith('/reportes')) return 'Gestión / Reportes'
+  return 'LogiStock'
+}

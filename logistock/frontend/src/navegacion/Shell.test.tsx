@@ -22,9 +22,16 @@ describe('shell PU-03', () => {
       const nav = screen.getByRole('navigation', { name: 'Módulos' })
       const nombres = within(nav).getAllByRole('link').map((enlace) => enlace.textContent)
       expect(nombres).toEqual(VISIBLES[rol])
-      expect(screen.getByText('Sesión de Ada')).toBeInTheDocument()
       vista.unmount()
     }
+  })
+
+  it('muestra el rol, la bodega y las migas', () => {
+    renderConSesion(<Shell><p>contenido secreto</p></Shell>, 'asesor_ventas', '/pedidos')
+    expect(screen.getByText('Asesor de ventas')).toBeInTheDocument()
+    expect(screen.getByText('Bodega Central')).toBeInTheDocument()
+    expect(screen.getByText('Ventas / Pedidos / Nuevo')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
   })
 
   it('el asesor no monta el contenido de reportes', () => {

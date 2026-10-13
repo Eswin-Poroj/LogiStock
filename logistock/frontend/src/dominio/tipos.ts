@@ -14,6 +14,7 @@ export interface Usuario {
   nombre: string
   rol: Rol
   bodega_id: string | null
+  bodega_nombre?: string | null
 }
 
 export interface LoginResponse {

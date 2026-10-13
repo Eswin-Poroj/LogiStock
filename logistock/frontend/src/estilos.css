@@ -7,7 +7,11 @@ html, body, #root {
 }
 
 body {
-  font-family: sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 1rem;
+  line-height: 1.45;
+  color: #1a1a1a;
+  background: #f4f6f8;
 }
 
 img, table, pre, input, select, button, a {
@@ -37,4 +41,239 @@ label, input, select {
 input, select {
   min-height: 44px;
   width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #b8c0cc;
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+}
+
+label {
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: #2c3440;
+}
+
+label select,
+label input {
+  margin-top: 0.35rem;
+  font-weight: 400;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #8a94a6;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.boton-primario {
+  background: #1e5a8a;
+  border-color: #174870;
+  color: #fff;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.shell-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-bottom: 1px solid #d8dee6;
+}
+
+.shell-nav a {
+  padding: 0.5rem 1rem;
+  text-decoration: none;
+  color: #1e5a8a;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.shell-nav a[aria-current="page"] {
+  background: #e8f0f8;
+}
+
+.shell-contenido {
+  padding: 1rem;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #d8dee6;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
+}
+
+.panel-encabezado h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  color: #1e3a5f;
+}
+
+.panel-subtitulo {
+  margin: 0 0 1.25rem;
+  color: #5a6573;
+  font-size: 0.95rem;
+}
+
+.formulario-pedido {
+  display: flex;
+  flex-direction: column;
+}
+
+.stock-disponible {
+  margin: -0.25rem 0 1rem;
+  padding: 0.65rem 0.85rem;
+  background: #eef6ee;
+  border: 1px solid #b8d4b8;
+  border-radius: 6px;
+  color: #2d4a2d;
+}
+
+.aviso-api {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #d8dee6;
+  background: #f8f9fb;
+}
+
+.aviso-api--error {
+  border-color: #e0a8a8;
+  background: #fdf3f3;
+  color: #6b2020;
+}
+
+.aviso-faltante {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid #e6c98a;
+  border-radius: 8px;
+  background: #fff9eb;
+}
+
+.aviso-faltante p {
+  margin: 0 0 0.75rem;
+}
+
+.acciones-faltante {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pedido-creado {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: #eef6ee;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.shell-app {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background: #f4f6f8;
+}
+
+.shell-lateral {
+  width: 240px;
+  flex: 0 0 240px;
+  display: flex;
+  flex-direction: column;
+  background: #14344f;
+  color: #f5f7fa;
+  padding: 1rem 0.75rem;
+}
+
+.shell-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  font-weight: 700;
+}
+
+.shell-logo span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #fff;
+  color: #14344f;
+  font-size: 0.75rem;
+}
+
+.shell-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0;
+  background: transparent;
+  border-bottom: 0;
+}
+
+.shell-nav a {
+  justify-content: flex-start;
+  color: #d5e2ef;
+  background: transparent;
+}
+
+.shell-nav a[aria-current="page"] {
+  background: #1f4e79;
+  color: #fff;
+}
+
+.shell-pie {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid #2d5274;
+}
+
+.shell-pie p {
+  margin: 0 0 0.25rem;
+}
+
+.shell-pie button {
+  margin-top: 0.75rem;
+  color: #f5f7fa;
+  background: transparent;
+  border-color: #c5d4e8;
+}
+
+.shell-cuerpo {
+  flex: 1;
+  min-width: 0;
+}
+
+.migas {
+  margin: 0;
+  padding: 0.75rem 1.25rem 0;
+  color: #5a6573;
+  font-size: 0.9rem;
+}
+
+.shell-contenido {
+  max-width: none;
+  padding: 0.75rem 1.25rem 1.5rem;
+}
+
+@media (max-width: 720px) {
+  .shell-app { flex-direction: column; }
+  .shell-lateral { width: 100%; flex: none; }
+  .shell-nav { flex-direction: row; flex-wrap: wrap; }
 }

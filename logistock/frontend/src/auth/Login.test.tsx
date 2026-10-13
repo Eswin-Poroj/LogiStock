@@ -47,7 +47,7 @@ describe('login', () => {
     await user.type(screen.getByLabelText('Correo'), 'ada@ejemplo.com')
     await user.type(screen.getByLabelText('Clave'), 'secreta')
     await user.click(screen.getByRole('button', { name: 'Entrar' }))
-    expect(await screen.findByText('Sesión de Ada')).toBeInTheDocument()
+    expect(await screen.findByText('Asesor de ventas')).toBeInTheDocument()
     expect(sessionStorage.getItem(CLAVE_TOKEN)).toBe('token-prueba')
   })
 
