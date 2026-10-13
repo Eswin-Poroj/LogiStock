@@ -32,6 +32,7 @@ describe('pantallas 501', () => {
 
   it('el tablero de picking muestra el 501 y no una tarea', async () => {
     const red = instalarFetch((url) => {
+      if (url.includes('/pedidos?estado=')) return { status: 200, body: [] }
       expect(url.endsWith('/picking/tareas')).toBe(true)
       return cuerpo('Pendiente: Iteración 3')
     })
