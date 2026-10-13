@@ -37,8 +37,8 @@ export function App() {
       <Route path="/inventario/ajustes" element={<Privada><FormularioAjuste /></Privada>} />
       <Route path="/picking" element={<Privada><TableroPicking /></Privada>} />
       <Route path="/picking/tarea" element={<Privada><TareaPicking /></Privada>} />
-      <Route path="/despachos" element={<Privada><ListaDespachos /></Privada>} />
-      <Route path="/despachos/nuevo" element={<Privada><FormularioDespacho /></Privada>} />
+      <Route path="/despachos" element={<Privada><FormularioDespacho /></Privada>} />
+      <Route path="/despachos/seguimiento" element={<Privada><ListaDespachos /></Privada>} />
       <Route path="/despachos/entrega" element={<Privada><EntregaParada /></Privada>} />
       <Route path="/despachos/iniciar" element={<Privada><IniciarDespacho /></Privada>} />
       <Route path="/reportes" element={<Privada><Reportes /></Privada>} />

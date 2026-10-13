@@ -5,7 +5,7 @@ export function ListaDespachos() {
   return (
     <>
       <MenuDespachos />
-      <h1>Despachos</h1>
+      <h1>Seguimiento</h1>
       <ConsultaGet titulo="Listado" ruta="/despachos" />
     </>
   )

@@ -45,7 +45,7 @@ describe('pantallas 501', () => {
   it('el listado de despachos muestra el 501 y no un código de ruta', async () => {
     const red = instalarFetch(() => cuerpo('Pendiente: Iteración 3'))
     redes.push(red)
-    renderConSesion(<App />, 'despachador', '/despachos')
+    renderConSesion(<App />, 'despachador', '/despachos/seguimiento')
     expect(await screen.findByRole('alert')).toHaveTextContent('El servicio respondió 501: Pendiente: Iteración 3')
     expect(screen.queryByText('R-14')).not.toBeInTheDocument()
   })
