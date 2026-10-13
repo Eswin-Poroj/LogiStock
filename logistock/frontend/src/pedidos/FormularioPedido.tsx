@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
 import { useListado } from '../api/useListado'
@@ -26,6 +27,7 @@ function avisoStock409(error: ApiError): string {
 
 export function FormularioPedido() {
   const { token } = useSesion()
+  const navigate = useNavigate()
   const clientes = useListado<Cliente>('/clientes', token)
   const bodegas = useListado<Bodega>('/bodegas', token)
   const [clienteId, setClienteId] = useState('')
@@ -38,7 +40,6 @@ export function FormularioPedido() {
   const [sustitutosDe, setSustitutosDe] = useState<string | null>(null)
   const [avisoCotizacion, setAvisoCotizacion] = useState<string | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
-  const [pedido, setPedido] = useState<Pedido | null>(null)
   const [existencias, setExistencias] = useState<InventarioRespuesta['items']>([])
 
   useEffect(() => {
@@ -132,7 +133,8 @@ export function FormularioPedido() {
       lineas: lineas.map((linea) => ({ producto_id: linea.producto_id, cantidad: linea.cantidad })),
     }
     try {
-      setPedido(await api<Pedido>('/pedidos', { method: 'POST', token, body }))
+      const creado = await api<Pedido>('/pedidos', { method: 'POST', token, body })
+      navigate(`/pedidos/${creado.id}`)
     } catch (fallo) {
       if (fallo instanceof ApiError) setError(fallo)
     }
@@ -147,7 +149,6 @@ export function FormularioPedido() {
     setAvisoBusqueda(null)
     setAvisoCotizacion(null)
     setError(null)
-    setPedido(null)
     setSustitutosDe(null)
   }
 
@@ -286,7 +287,6 @@ export function FormularioPedido() {
           </ol>
         </section>
       </form>
-      {pedido && <p className="pedido-creado">Pedido {pedido.numero}</p>}
     </section>
   )
 }

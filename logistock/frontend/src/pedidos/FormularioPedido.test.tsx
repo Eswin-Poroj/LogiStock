@@ -6,7 +6,7 @@ import { App } from '../App'
 import { instalarFetch } from '../test/mockFetch'
 import type { RespuestaMock } from '../test/mockFetch'
 import { renderConSesion } from '../test/renderConSesion'
-import { BODEGA_ID, CLIENTE_ID, PRODUCTO_ID } from '../test/ids'
+import { BODEGA_ID, CLIENTE_ID, PEDIDO_ID, PRODUCTO_ID } from '../test/ids'
 
 const producto = {
   id: PRODUCTO_ID,
@@ -63,6 +63,7 @@ function instalar(disponible: number, pedido: RespuestaMock) {
     if (url.endsWith('/productos')) return { status: 200, body: [producto] }
     if (url.endsWith('/bodegas')) return { status: 200, body: [{ id: BODEGA_ID, nombre: 'Bodega Central' }] }
     if (url.includes(`/inventario?bodega_id=${BODEGA_ID}`)) return inventario(disponible)
+    if (url.endsWith(`/pedidos/${PEDIDO_ID}`) && (!init?.method || init.method === 'GET')) return pedido
     if (url.endsWith('/pedidos') && init?.method === 'POST') return pedido
     return { status: 500, body: { statusCode: 500, message: `no esperado ${url}`, error: 'Error' } }
   })
@@ -108,7 +109,7 @@ describe('formulario de pedido', () => {
     expect(screen.getByText(/IVA 12 %/)).toHaveTextContent('Q 9.36')
     expect(screen.getByText(/^Total/)).toHaveTextContent('Q 87.36')
     await user.click(screen.getByRole('button', { name: 'Confirmar pedido' }))
-    expect(await screen.findByText('Pedido PED-000232')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Pedido PED-000232' })).toBeInTheDocument()
     const post = red.llamadas.find((llamada) => llamada.url.endsWith('/pedidos') && llamada.init?.method === 'POST')
     expect(JSON.parse(String(post?.init?.body))).toEqual({
       cliente_id: CLIENTE_ID,
@@ -137,7 +138,7 @@ describe('formulario de pedido', () => {
     expect(within(screen.getByRole('heading', { name: 'Resumen' }).parentElement!).getByText(/Subtotal/)).toHaveTextContent('Q 0.00')
     expect(screen.getByRole('button', { name: 'Confirmar pedido' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Confirmar pedido' }))
-    expect(await screen.findByText('Pedido PED-000231')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Pedido PED-000231' })).toBeInTheDocument()
     const post = red.llamadas.find((llamada) => llamada.init?.method === 'POST' && llamada.url.endsWith('/pedidos'))
     expect(JSON.parse(String(post?.init?.body)).politica_faltantes).toBe('backorder')
   })

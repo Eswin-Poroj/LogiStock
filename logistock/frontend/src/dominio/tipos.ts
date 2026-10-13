@@ -165,6 +165,15 @@ export interface Pedido {
   lineas: LineaPedido[]
 }
 
+export interface PedidoResumen {
+  id: string
+  numero: string
+  cliente: string
+  estado: EstadoPedido
+  total: number
+  created_at: string
+}
+
 export interface LineaTareaPicking {
   pedido_linea_id: string
   sku: string

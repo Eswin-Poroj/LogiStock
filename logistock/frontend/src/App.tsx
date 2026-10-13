@@ -12,6 +12,7 @@ import { FormularioEntrada } from './inventario/FormularioEntrada'
 import { Inicio } from './navegacion/Inicio'
 import { Shell } from './navegacion/Shell'
 import { FormularioPedido } from './pedidos/FormularioPedido'
+import { DetallePedido } from './pedidos/DetallePedido'
 import { TableroPicking } from './picking/TableroPicking'
 import { TareaPicking } from './picking/TareaPicking'
 import { Reportes } from './reportes/Reportes'
@@ -27,6 +28,7 @@ export function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Inicio />} />
+      <Route path="/pedidos/:id" element={<Privada><DetallePedido /></Privada>} />
       <Route path="/pedidos" element={<Privada><FormularioPedido /></Privada>} />
       <Route path="/inventario" element={<Privada><FormularioEntrada /></Privada>} />
       <Route path="/inventario/danio" element={<Privada><FormularioDanio /></Privada>} />
