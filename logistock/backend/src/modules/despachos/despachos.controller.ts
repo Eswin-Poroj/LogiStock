@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { Roles, UsuarioActual } from '../../common/auth/roles.decorator';
@@ -47,5 +47,12 @@ export class DespachosController {
   @Post(':id/paradas/:paradaId/entregar')
   entregar(@Param('id', ParseUUIDPipe) id: string, @Param('paradaId', ParseUUIDPipe) paradaId: string) {
     return this.servicio.entregar(id, paradaId);
+  }
+
+  /** Solo despachos sin paradas: con pedidos asignados el stock ya salió y la ruta es historial. */
+  @HttpCode(204)
+  @Delete(':id')
+  eliminar(@Param('id', ParseUUIDPipe) id: string) {
+    return this.servicio.eliminar(id);
   }
 }

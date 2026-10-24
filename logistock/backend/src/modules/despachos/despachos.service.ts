@@ -9,6 +9,7 @@ import { UsuarioActual } from '../../common/auth/roles.decorator';
 import { SupabaseService } from '../../common/supabase/supabase.service';
 import { DespachoNuevoDto, RutaSolicitudDto } from './despachos.dto';
 import { RutasClient } from './rutas.client';
+import { CargaPedido, redondearKg, sugerirViajes } from './carga';
 
 const COLUMNAS = `id, codigo, estado, distancia_km, duracion_min, salida_prevista, created_at,
   vehiculos(nombre, placa), conductores(nombre),
@@ -53,6 +54,15 @@ function aDespacho(fila: any) {
   };
 }
 
+/** Texto del aviso de CU-06 A2: dividir si se puede; si un pedido solo no cabe, otro vehículo. */
+export function avisoSobrecarga(c: { carga_kg: number; capacidad_kg: number; viajes_sugeridos: unknown[]; pedidos_que_no_caben: string[] }) {
+  const base = `La carga (${c.carga_kg} kg) supera la capacidad del vehículo (${c.capacidad_kg} kg).`;
+  if (c.pedidos_que_no_caben.length) {
+    return `${base} ${c.pedidos_que_no_caben.join(', ')} por sí solo no cabe: usa un vehículo de más capacidad o confirma la sobrecarga.`;
+  }
+  return `${base} Divide el despacho en ${c.viajes_sugeridos.length} viajes o confirma la sobrecarga.`;
+}
+
 @Injectable()
 export class DespachosService {
   constructor(
@@ -66,7 +76,9 @@ export class DespachosService {
     if (!cruda) throw new BadGatewayException('El motor de rutas no respondió');
     const salida = dto.salida_prevista ? Date.parse(dto.salida_prevista) : Date.now();
     const origen = puntos[0];
+    const capacidad = dto.vehiculo_id ? await this.capacidad(dto.vehiculo_id, dto.pedido_ids) : null;
     return {
+      ...(capacidad ?? {}),
       distancia_km: cruda.distancia_km,
       duracion_min: cruda.duracion_min,
       proveedor: cruda.proveedor,
@@ -91,6 +103,14 @@ export class DespachosService {
     if (ya.error) throw new BadRequestException(ya.error.message);
     if ((ya.data ?? []).length) throw new ConflictException('El pedido ya está asignado a otra ruta');
     await this.exigirPickingCompleto(ids);
+    const capacidad = await this.capacidad(dto.vehiculo_id, ids);
+    if (capacidad.excede_capacidad && !dto.aceptar_exceso) {
+      throw new ConflictException({
+        statusCode: 409,
+        message: avisoSobrecarga(capacidad),
+        ...capacidad,
+      });
+    }
     const codigo = `R-${Date.now().toString(36).toUpperCase()}`;
     const ins = await db.from('despachos').insert({
       codigo,
@@ -160,6 +180,43 @@ export class DespachosService {
       await this.supabase.db.from('despachos').update({ estado: 'finalizado' }).eq('id', despachoId);
     }
     return this.obtener(despachoId);
+  }
+
+  async eliminar(id: string) {
+    const despacho = await this.obtener(id);
+    if (despacho.paradas.length) {
+      throw new ConflictException('El despacho tiene pedidos asignados; queda como historial y no se puede eliminar.');
+    }
+    const { error } = await this.supabase.db.from('despachos').delete().eq('id', id);
+    if (error) throw new BadRequestException(error.message);
+  }
+
+  /** CU-06 A2: carga de los pedidos (unidades reservadas × peso) frente a la capacidad del vehículo. */
+  private async capacidad(vehiculoId: string, pedidoIds: string[]) {
+    const db = this.supabase.db;
+    const { data: vehiculo, error } = await db.from('vehiculos').select('capacidad_kg').eq('id', vehiculoId).maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!vehiculo) throw new NotFoundException('Vehículo no encontrado');
+    const { data: pedidos, error: ePed } = await db.from('pedidos')
+      .select('id, numero, pedido_lineas(cantidad, estado, productos(peso_kg))').in('id', pedidoIds);
+    if (ePed) throw new BadRequestException(ePed.message);
+    const cargas: CargaPedido[] = (pedidos ?? []).map((p: any) => ({
+      pedido_id: p.id,
+      numero: p.numero,
+      kg: (p.pedido_lineas ?? []).filter((l: any) => l.estado === 'reservada')
+        .reduce((suma: number, l: any) => suma + l.cantidad * Number(l.productos?.peso_kg ?? 0), 0),
+    }));
+    const carga = redondearKg(cargas.reduce((suma, c) => suma + c.kg, 0));
+    const capacidadKg = Number(vehiculo.capacidad_kg);
+    const excede = carga > capacidadKg;
+    const sugerencia = excede ? sugerirViajes(cargas, capacidadKg) : { viajes: [], no_caben: [] };
+    return {
+      carga_kg: carga,
+      capacidad_kg: capacidadKg,
+      excede_capacidad: excede,
+      viajes_sugeridos: sugerencia.viajes,
+      pedidos_que_no_caben: sugerencia.no_caben,
+    };
   }
 
   /** CU-06: solo se despachan pedidos en preparación cuyo picking quedó completado. */

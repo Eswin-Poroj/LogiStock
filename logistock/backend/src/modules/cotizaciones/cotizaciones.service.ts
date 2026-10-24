@@ -67,4 +67,10 @@ export class CotizacionesService {
       })),
     };
   }
+
+  async eliminar(id: string) {
+    const { data, error } = await this.supabase.db.from('cotizaciones').delete().eq('id', id).select('id');
+    if (error) throw new BadRequestException(error.message);
+    if (!data?.length) throw new NotFoundException('Cotización no encontrada');
+  }
 }

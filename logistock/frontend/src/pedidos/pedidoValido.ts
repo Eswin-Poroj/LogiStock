@@ -23,6 +23,7 @@ export interface ResumenPedido {
   confirmadas: number
   totalLineas: number
   subtotal: number
+  descuento: number
   iva: number
   total: number
 }
@@ -54,17 +55,25 @@ export function politicaDelFormulario(lineas: LineaCotizacion[]): PoliticaFaltan
   return hayBackorder ? 'backorder' : 'rechazar'
 }
 
-export function resumenPedido(lineas: LineaCotizacion[]): ResumenPedido {
+/** Misma cuenta que el backend: el descuento va antes del IVA y solo sobre las líneas reservables. */
+export function resumenPedido(lineas: LineaCotizacion[], descuentoPct = 0): ResumenPedido {
   const incluidas = lineas.filter(lineaReservable)
   const subtotal = round2(incluidas.reduce((suma, linea) => suma + linea.cantidad * linea.precio_unitario, 0))
-  const iva = round2((subtotal * IVA_PORCENTAJE) / 100)
+  const descuento = round2((subtotal * descuentoPct) / 100)
+  const iva = round2(((subtotal - descuento) * IVA_PORCENTAJE) / 100)
   return {
     confirmadas: incluidas.length,
     totalLineas: lineas.length,
     subtotal,
+    descuento,
     iva,
-    total: round2(subtotal + iva),
+    total: round2(subtotal - descuento + iva),
   }
+}
+
+/** CU-01 A2: por encima del máximo hace falta un supervisor, salvo que quien vende ya sea administrador. */
+export function requiereAutorizacion(descuentoPct: number, maximoPct: number, rol: string): boolean {
+  return descuentoPct > maximoPct && rol !== 'administrador'
 }
 
 export function ajustarADisponible(linea: LineaCotizacion): LineaCotizacion {

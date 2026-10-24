@@ -5,7 +5,7 @@ import { CompletarPickingDto, EscaneoNuevoDto, FiltroTareasDto } from './picking
 
 const COLUMNAS = `id, pedido_id, estado, created_at,
   operario:usuarios(nombre),
-  pedidos!inner(numero, estado, total, bodega_id, clientes(nombre)),
+  pedidos!inner(numero, estado, total, bodega_id, creado_por, clientes(nombre)),
   picking_lineas(pedido_linea_id, cantidad_recogida, pedido_lineas(cantidad, producto_id, productos(sku, nombre)))`;
 
 interface LineaTarea {
@@ -78,7 +78,21 @@ export class PickingService {
       estado, completada_at: new Date().toISOString(),
     }).eq('id', id);
     if (upd.error) throw new BadRequestException(upd.error.message);
+    if (estado === 'con_faltante') await this.avisarFaltante(tarea, incompletas);
     return this.obtener(id);
+  }
+
+  /** CU-05 E2: el asesor que creó el pedido recibe el aviso para ofrecer sustituto o backorder. */
+  private async avisarFaltante(tarea: Awaited<ReturnType<PickingService['obtener']>>, incompletas: LineaTarea[]) {
+    const detalle = incompletas.map((l) => `${l.sku} (${l.cantidad_recogida} de ${l.cantidad})`).join(', ');
+    const { error } = await this.supabase.db.from('notificaciones').insert({
+      usuario_id: tarea.creado_por,
+      tipo: 'picking_faltante',
+      pedido_id: tarea.pedido_id,
+      mensaje: `El picking de ${tarea.numero_pedido} (${tarea.cliente}) quedó con faltante: ${detalle}. Ofrece un sustituto o backorder al cliente.`,
+    });
+    // El cierre ya quedó registrado; un fallo del aviso no debe deshacerlo, pero sí verse en el log.
+    if (error) console.error('No se pudo crear el aviso de faltante', error.message);
   }
 
   private async aRespuesta(fila: any) {
@@ -106,6 +120,7 @@ export class PickingService {
       total: Number(fila.pedidos.total),
       estado: fila.estado as string,
       estado_pedido: fila.pedidos.estado as string,
+      creado_por: fila.pedidos.creado_por as string,
       operario: (fila.operario?.nombre ?? null) as string | null,
       lineas,
     };

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { Roles, UsuarioActual } from '../../common/auth/roles.decorator';
@@ -36,7 +36,28 @@ export class InventarioController {
     return this.servicio.registrarEntrada(dto, usuario);
   }
 
-  // Iteración 2: ajustes y daños (mueven unidades entre disponible y dañado).
+  /** Ajustes que esperan la aprobación del administrador (CU-04 A1). */
+  @Roles('operario_bodega')
+  @Get('ajustes/pendientes')
+  pendientes(@Query('estado') estado?: string) {
+    return this.servicio.ajustesPendientes(estado ?? 'pendiente');
+  }
+
+  @Roles('administrador')
+  @HttpCode(200)
+  @Post('ajustes/:id/aprobar')
+  aprobar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() usuario: UsuarioActual) {
+    return this.servicio.resolverAjuste(id, true, usuario);
+  }
+
+  @Roles('administrador')
+  @HttpCode(200)
+  @Post('ajustes/:id/rechazar')
+  rechazar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() usuario: UsuarioActual) {
+    return this.servicio.resolverAjuste(id, false, usuario);
+  }
+
+  // CU-04: ajustes y daños. Un ajuste grande del operario queda pendiente (responde pendiente: true).
   @Roles('operario_bodega')
   @Post('ajustes')
   ajuste(@Body() dto: AjusteNuevoDto, @CurrentUser() usuario: UsuarioActual) {

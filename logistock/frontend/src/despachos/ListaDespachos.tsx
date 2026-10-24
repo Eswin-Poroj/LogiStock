@@ -9,12 +9,23 @@ import { avanceEntregas, claseDespacho, etiquetaDespacho } from './estadoDespach
 import { textoDuracion } from './formatoRuta'
 import { MenuDespachos } from './MenuDespachos'
 import { useDespachos } from './useDespachos'
+import { Paginador } from '../comun/Paginador'
+import { eliminarConConfirmacion, paginar } from '../comun/paginar'
 
 export function ListaDespachos() {
   const { token } = useSesion()
   const [estado, setEstado] = useState<EstadoDespacho | ''>('')
   const despachos = useDespachos(token, estado || undefined)
   const [error, setError] = useState<ApiError | null>(null)
+  const [pagina, setPagina] = useState(1)
+  const vista = paginar(despachos.items, pagina)
+
+  async function eliminar(despacho: Despacho) {
+    setError(null)
+    if (await eliminarConConfirmacion(token, `/despachos/${despacho.id}`, `¿Eliminar el despacho vacío ${despacho.codigo}?`, setError)) {
+      despachos.setItems((filas) => filas.filter((fila) => fila.id !== despacho.id))
+    }
+  }
 
   async function iniciar(id: string) {
     if (!token) return
@@ -56,7 +67,7 @@ export function ListaDespachos() {
                 <tr><th>Código</th><th>Estado</th><th>Vehículo</th><th>Conductor</th><th className="num">Entregas</th><th className="num">Distancia</th><th>Acción</th></tr>
               </thead>
               <tbody>
-                {despachos.items.map((despacho) => (
+                {vista.visibles.map((despacho) => (
                   <tr key={despacho.id}>
                     <td className="sku">{despacho.codigo}</td>
                     <td><span className={claseDespacho(despacho.estado)}>{etiquetaDespacho(despacho.estado)}</span></td>
@@ -67,11 +78,14 @@ export function ListaDespachos() {
                       {despacho.distancia_km != null ? `${despacho.distancia_km} km` : '—'}
                       {despacho.duracion_min != null && <small> · {textoDuracion(despacho.duracion_min)}</small>}
                     </td>
-                    <td>
-                      {despacho.estado === 'planificado' && (
+                    <td className="acciones-fila">
+                      {despacho.estado === 'planificado' && despacho.paradas.length > 0 && (
                         <button type="button" aria-label={`Iniciar ruta ${despacho.codigo}`} onClick={() => void iniciar(despacho.id)}>Iniciar ruta</button>
                       )}
                       {despacho.estado === 'en_ruta' && <Link to={`/despachos/entrega?id=${despacho.id}`}>Confirmar entregas</Link>}
+                      {despacho.paradas.length === 0 && (
+                        <button type="button" className="boton-peligro" aria-label={`Eliminar ${despacho.codigo}`} onClick={() => void eliminar(despacho)}>Eliminar</button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -79,6 +93,7 @@ export function ListaDespachos() {
             </table>
           </div>
         )}
+        <Paginador pagina={vista.pagina} paginas={vista.paginas} total={despachos.items.length} onPagina={setPagina} etiqueta="despachos" />
       </section>
     </section>
   )

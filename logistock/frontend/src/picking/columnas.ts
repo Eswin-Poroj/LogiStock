@@ -31,7 +31,8 @@ export function agruparTareas<T extends { estado: EstadoPicking; estado_pedido?:
  * Devuelve null cuando la tarjeta no debe mostrar avance.
  */
 export function progresoTarea(tarea: { estado: EstadoPicking; lineas: { cantidad: number; cantidad_recogida: number }[] }): string | null {
-  // TODO(usuario): decide qué cuenta como avance y en qué estados se muestra.
-  void tarea
-  return null
+  // Como la figura 7: cuenta líneas completas, no unidades, y solo mientras el operario recoge.
+  if (tarea.estado !== 'en_curso') return null
+  const completas = tarea.lineas.filter((linea) => linea.cantidad_recogida >= linea.cantidad).length
+  return `Picking en curso · ${completas} de ${tarea.lineas.length}`
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agruparTareas, columnaDeTarea, tituloColumna } from './columnas'
+import { agruparTareas, columnaDeTarea, progresoTarea, tituloColumna } from './columnas'
 
 describe('columnas de picking', () => {
   it('deja en Creado solo la tarea pendiente', () => {
@@ -34,5 +34,12 @@ describe('columnas de picking', () => {
     ])
     expect(grupos.en_preparacion.map((tarea) => tarea.id)).toEqual(['a'])
     expect(grupos.creado).toEqual([])
+  })
+
+  it('muestra el avance por líneas solo mientras la tarea está en curso', () => {
+    const lineas = [{ cantidad: 40, cantidad_recogida: 40 }, { cantidad: 25, cantidad_recogida: 10 }]
+    expect(progresoTarea({ estado: 'en_curso', lineas })).toBe('Picking en curso · 1 de 2')
+    expect(progresoTarea({ estado: 'pendiente', lineas })).toBeNull()
+    expect(progresoTarea({ estado: 'completado', lineas })).toBeNull()
   })
 })

@@ -75,7 +75,7 @@ describe('tarea de picking', () => {
 
   it('muestra el 409 del SKU ajeno y no cambia lo recogido', async () => {
     const user = userEvent.setup()
-    redes.push(instalarFetch((url, init) => {
+    redes.push(instalarFetch((_url, init) => {
       if (init?.method === 'POST') return { status: 409, body: { statusCode: 409, message: 'El SKU FER-9999 no está en la tarea', error: 'Conflict' } }
       return { status: 200, body: tarea() }
     }))
@@ -89,7 +89,7 @@ describe('tarea de picking', () => {
 
   it('reportar faltante envía faltante true y no envía nota', async () => {
     const user = userEvent.setup()
-    const red = instalarFetch((url, init) => {
+    const red = instalarFetch((url, _init) => {
       if (url.endsWith('/completar')) return { status: 200, body: tarea({ estado: 'con_faltante' }) }
       return { status: 200, body: tarea() }
     })

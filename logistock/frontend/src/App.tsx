@@ -19,7 +19,10 @@ import { TareaPicking } from './picking/TareaPicking'
 import { Reportes } from './reportes/Reportes'
 import { Catalogo } from './catalogo/Catalogo'
 import { FlotaDespacho } from './despachos/FlotaDespacho'
+import { Aprobaciones } from './inventario/Aprobaciones'
 import { Restablecer } from './auth/Restablecer'
+import { ListaPedidos } from './pedidos/ListaPedidos'
+import { ListaCotizaciones } from './pedidos/ListaCotizaciones'
 
 function Privada({ children }: { children: ReactNode }) {
   const { usuario } = useSesion()
@@ -33,12 +36,15 @@ export function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/restablecer" element={<Restablecer />} />
       <Route path="/" element={<Inicio />} />
+      <Route path="/pedidos/lista" element={<Privada><ListaPedidos /></Privada>} />
+      <Route path="/pedidos/cotizaciones" element={<Privada><ListaCotizaciones /></Privada>} />
       <Route path="/pedidos/:id" element={<Privada><DetallePedido /></Privada>} />
       <Route path="/pedidos" element={<Privada><FormularioPedido /></Privada>} />
       <Route path="/inventario" element={<Privada><InventarioBodega /></Privada>} />
       <Route path="/inventario/entradas" element={<Privada><FormularioEntrada /></Privada>} />
       <Route path="/inventario/danio" element={<Privada><FormularioDanio /></Privada>} />
       <Route path="/inventario/ajustes" element={<Privada><FormularioAjuste /></Privada>} />
+      <Route path="/inventario/aprobaciones" element={<Privada><Aprobaciones /></Privada>} />
       <Route path="/picking" element={<Privada><TableroPicking /></Privada>} />
       <Route path="/picking/tarea" element={<Privada><TareaPicking /></Privada>} />
       <Route path="/despachos" element={<Privada><FormularioDespacho /></Privada>} />

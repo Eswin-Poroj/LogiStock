@@ -67,7 +67,7 @@ describe('detalle del pedido', () => {
 
   it('el 409 no pinta Cancelado', async () => {
     const user = userEvent.setup()
-    const red = instalarFetch((url, init) => {
+    const red = instalarFetch((_url, init) => {
       if (init?.method === 'POST') {
         return { status: 409, body: { statusCode: 409, message: 'No se puede cancelar un pedido en estado despachado', error: 'Conflict' } }
       }

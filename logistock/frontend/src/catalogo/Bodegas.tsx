@@ -5,6 +5,8 @@ import { ApiError, api } from '../api/cliente'
 import { useSesion } from '../auth/sesion'
 import type { Bodega } from '../dominio/tipos'
 import { SelectorUbicacion } from './SelectorUbicacion'
+import { BuscadorTabla, Paginador } from '../comun/Paginador'
+import { eliminarConConfirmacion, useTablaPaginada } from '../comun/paginar'
 
 /** Bodegas (Visión: múltiples almacenes). La ubicación es el punto de salida de las rutas. */
 export function Bodegas() {
@@ -29,6 +31,17 @@ export function Bodegas() {
     setAviso(mensaje)
   }
 
+  const tabla = useTablaPaginada(bodegas, (b) => `${b.nombre} ${b.direccion ?? ''}`)
+
+  async function eliminar(bodega: Bodega) {
+    setError(null)
+    setAviso(null)
+    if (await eliminarConConfirmacion(token, `/bodegas/${bodega.id}`, `¿Eliminar la bodega ${bodega.nombre}?`, setError)) {
+      setBodegas((actuales) => actuales.filter((fila) => fila.id !== bodega.id))
+      setAviso(`Bodega ${bodega.nombre} eliminada`)
+    }
+  }
+
   async function alternar(bodega: Bodega) {
     if (!token) return
     setError(null)
@@ -48,14 +61,17 @@ export function Bodegas() {
         {aviso && <p className="nota-ok" role="status">{aviso}</p>}
       </section>
       <section className="tarjeta" aria-label="Bodegas">
-        <h2>Bodegas ({bodegas.length})</h2>
+        <div className="encabezado-tabla">
+          <h2>Bodegas ({bodegas.length})</h2>
+          <BuscadorTabla valor={tabla.busqueda} onCambio={tabla.setBusqueda} placeholder="Nombre o dirección" />
+        </div>
         {error && <AvisoApi error={error} />}
         <p className="nota">Solo las activas aparecen en pedidos, inventario y despacho.</p>
         <div className="tabla-contenedor">
           <table>
             <thead><tr><th>Nombre</th><th>Dirección</th><th>Ubicación</th><th>Estado</th><th /></tr></thead>
             <tbody>
-              {bodegas.map((b) => (
+              {tabla.visibles.map((b) => (
                 <tr key={b.id} className={editando?.id === b.id ? 'fila-activa' : undefined}>
                   <td>{b.nombre}</td>
                   <td>{b.direccion ?? '—'}</td>
@@ -64,12 +80,14 @@ export function Bodegas() {
                   <td className="acciones-fila">
                     <button type="button" aria-label={`Editar ${b.nombre}`} onClick={() => { setAviso(null); setEditando(b) }}>Editar</button>
                     <button type="button" aria-label={`${b.activa ? 'Desactivar' : 'Activar'} ${b.nombre}`} onClick={() => void alternar(b)}>{b.activa ? 'Desactivar' : 'Activar'}</button>
+                    <button type="button" className="boton-peligro" aria-label={`Eliminar ${b.nombre}`} onClick={() => void eliminar(b)}>Eliminar</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <Paginador pagina={tabla.pagina} paginas={tabla.paginas} total={tabla.total} onPagina={tabla.setPagina} etiqueta="bodegas" />
       </section>
     </div>
   )

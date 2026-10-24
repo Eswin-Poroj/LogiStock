@@ -8,6 +8,8 @@ import { quetzales } from '../dominio/quetzales'
 import type { Bodega, Cliente, Producto, Proveedor } from '../dominio/tipos'
 import { Encabezado } from '../navegacion/Encabezado'
 import { FormularioCliente } from './FormularioCliente'
+import { BuscadorTabla, Paginador } from '../comun/Paginador'
+import { eliminarConConfirmacion, useTablaPaginada } from '../comun/paginar'
 import { Conductores, Vehiculos } from './Flota'
 import { Bodegas } from './Bodegas'
 
@@ -60,6 +62,36 @@ function Productos() {
     return () => { vivo = false }
   }, [token])
 
+  const tabla = useTablaPaginada(productos, (p) => `${p.sku} ${p.nombre} ${p.categoria ?? ''}`)
+
+  // Si no se puede borrar por historial, se ofrece desactivarlo en el mismo aviso.
+  const [conHistorial, setConHistorial] = useState<Producto | null>(null)
+
+  async function eliminar(producto: Producto) {
+    setError(null)
+    setAviso(null)
+    setConHistorial(null)
+    const ok = await eliminarConConfirmacion(token, `/productos/${producto.id}`, `¿Eliminar ${producto.sku} · ${producto.nombre}? Esta acción no se puede deshacer.`, (fallo) => {
+      setError(fallo)
+      if (fallo.status === 409 && producto.activo) setConHistorial(producto)
+    })
+    if (!ok) return
+    setProductos((actuales) => actuales.filter((fila) => fila.id !== producto.id))
+    if (editando?.id === producto.id) setEditando(null)
+    setAviso(`Producto ${producto.sku} eliminado`)
+  }
+
+  async function desactivar(producto: Producto) {
+    if (!token) return
+    setError(null)
+    setConHistorial(null)
+    try {
+      guardado(await api<Producto>(`/productos/${producto.id}`, { method: 'PATCH', token, body: { activo: false } }), `Producto ${producto.sku} desactivado: ya no aparece para la venta y conserva su historial.`)
+    } catch (fallo) {
+      if (fallo instanceof ApiError) setError(fallo)
+    }
+  }
+
   function guardado(producto: Producto, mensaje: string) {
     setProductos((actuales) => {
       const resto = actuales.filter((fila) => fila.id !== producto.id)
@@ -77,15 +109,24 @@ function Productos() {
         {aviso && <p className="nota-ok" role="status">{aviso}</p>}
       </section>
       <section className="tarjeta" aria-label="Productos">
-        <h2>Productos ({productos.length})</h2>
+        <div className="encabezado-tabla">
+          <h2>Productos ({productos.length})</h2>
+          <BuscadorTabla valor={tabla.busqueda} onCambio={tabla.setBusqueda} placeholder="SKU, nombre o categoría" />
+        </div>
         {(error ?? bodegas.error) && <AvisoApi error={(error ?? bodegas.error) as ApiError} />}
+        {conHistorial && (
+          <div className="accion-alternativa">
+            <span>{conHistorial.sku} tiene historial, así que no se borra. Puedes desactivarlo: deja de venderse y su historial queda intacto.</span>
+            <button type="button" onClick={() => void desactivar(conHistorial)}>Desactivar en su lugar</button>
+          </div>
+        )}
         {productos.length === 0 && !error && <p className="nota">Aún no hay productos. Crea el primero con el formulario.</p>}
         {productos.length > 0 && (
           <div className="tabla-contenedor">
             <table>
               <thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th className="num">Precio</th><th className="num">Mínimo</th><th>Estado</th><th /></tr></thead>
               <tbody>
-                {productos.map((producto) => (
+                {tabla.visibles.map((producto) => (
                   <tr key={producto.id} className={editando?.id === producto.id ? 'fila-activa' : undefined}>
                     <td className="sku">{producto.sku}</td>
                     <td>{producto.nombre}</td>
@@ -93,13 +134,17 @@ function Productos() {
                     <td className="num">{quetzales(Number(producto.precio_unitario))}</td>
                     <td className="num">{producto.stock_minimo}</td>
                     <td><span className={producto.activo ? 'pastilla pastilla-ok' : 'pastilla pastilla-error'}>{producto.activo ? 'Activo' : 'Inactivo'}</span></td>
-                    <td><button type="button" aria-label={`Editar ${producto.sku}`} onClick={() => { setAviso(null); setEditando(producto) }}>Editar</button></td>
+                    <td className="acciones-fila">
+                      <button type="button" aria-label={`Editar ${producto.sku}`} onClick={() => { setAviso(null); setEditando(producto) }}>Editar</button>
+                      <button type="button" className="boton-peligro" aria-label={`Eliminar ${producto.sku}`} onClick={() => void eliminar(producto)}>Eliminar</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+        <Paginador pagina={tabla.pagina} paginas={tabla.paginas} total={tabla.total} onPagina={tabla.setPagina} etiqueta="productos" />
       </section>
     </div>
   )
@@ -124,6 +169,7 @@ function FormularioProducto({ producto, bodegas, categorias, onGuardado, onCance
   const [unidad, setUnidad] = useState(producto?.unidad ?? 'unidad')
   const [precio, setPrecio] = useState(producto ? String(producto.precio_unitario) : '')
   const [minimo, setMinimo] = useState(producto ? String(producto.stock_minimo) : '0')
+  const [peso, setPeso] = useState(producto ? String(producto.peso_kg ?? 0) : '0')
   const [activo, setActivo] = useState(producto?.activo ?? true)
   const [bodegaId, setBodegaId] = useState('')
   const [ubicacion, setUbicacion] = useState('')
@@ -131,13 +177,14 @@ function FormularioProducto({ producto, bodegas, categorias, onGuardado, onCance
   const precioNum = Number(precio)
   const minimoNum = Number(minimo)
   const prefijo = prefijoDe(categoria)
-  const listo = categoria.trim() !== '' && nombre.trim() !== '' && precio !== '' && precioNum >= 0 && Number.isInteger(minimoNum) && minimoNum >= 0
+  const pesoNum = Number(peso)
+  const listo = categoria.trim() !== '' && nombre.trim() !== '' && precio !== '' && precioNum >= 0 && Number.isInteger(minimoNum) && minimoNum >= 0 && peso !== '' && pesoNum >= 0
 
   async function enviar(evento: FormEvent) {
     evento.preventDefault()
     if (!token || !listo) return
     setError(null)
-    const body: Record<string, unknown> = { categoria: categoria.trim(), nombre: nombre.trim(), unidad: unidad.trim() || 'unidad', precio_unitario: precioNum, stock_minimo: minimoNum }
+    const body: Record<string, unknown> = { categoria: categoria.trim(), nombre: nombre.trim(), unidad: unidad.trim() || 'unidad', precio_unitario: precioNum, stock_minimo: minimoNum, peso_kg: pesoNum }
     if (bodegaId) { body.bodega_id = bodegaId; body.ubicacion = ubicacion.trim() }
     try {
       if (producto) {
@@ -169,6 +216,7 @@ function FormularioProducto({ producto, bodegas, categorias, onGuardado, onCance
       <label>Unidad<input value={unidad} onChange={(e) => setUnidad(e.target.value)} /></label>
       <label>Precio unitario (Q)<input type="number" min={0} step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)} /></label>
       <label>Stock mínimo<input type="number" min={0} step={1} value={minimo} onChange={(e) => setMinimo(e.target.value)} /></label>
+      <label>Peso por unidad (kg)<input type="number" min={0} step="0.001" value={peso} onChange={(e) => setPeso(e.target.value)} /></label>
       {producto && (
         <label className="campo-casilla"><input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Activo para la venta</label>
       )}
@@ -207,6 +255,15 @@ function Proveedores() {
     return () => { vivo = false }
   }, [token])
 
+  const tabla = useTablaPaginada(proveedores, (p) => `${p.nombre} ${p.nit ?? ''} ${p.correo ?? ''}`)
+
+  async function eliminar(proveedor: Proveedor) {
+    setError(null)
+    if (await eliminarConConfirmacion(token, `/proveedores/${proveedor.id}`, `¿Eliminar al proveedor ${proveedor.nombre}?`, setError)) {
+      setProveedores((actuales) => actuales.filter((fila) => fila.id !== proveedor.id))
+    }
+  }
+
   async function enviar(evento: FormEvent) {
     evento.preventDefault()
     if (!token || !nombre.trim()) return
@@ -238,15 +295,24 @@ function Proveedores() {
         </form>
       </section>
       <section className="tarjeta" aria-label="Proveedores">
-        <h2>Proveedores ({proveedores.length})</h2>
+        <div className="encabezado-tabla">
+          <h2>Proveedores ({proveedores.length})</h2>
+          <BuscadorTabla valor={tabla.busqueda} onCambio={tabla.setBusqueda} placeholder="Nombre, NIT o correo" />
+        </div>
         <div className="tabla-contenedor">
           <table>
-            <thead><tr><th>Nombre</th><th>NIT</th><th>Teléfono</th><th>Correo</th></tr></thead>
+            <thead><tr><th>Nombre</th><th>NIT</th><th>Teléfono</th><th>Correo</th><th /></tr></thead>
             <tbody>
-              {proveedores.map((p) => <tr key={p.id}><td>{p.nombre}</td><td>{p.nit ?? '—'}</td><td>{p.telefono ?? '—'}</td><td>{p.correo ?? '—'}</td></tr>)}
+              {tabla.visibles.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.nombre}</td><td>{p.nit ?? '—'}</td><td>{p.telefono ?? '—'}</td><td>{p.correo ?? '—'}</td>
+                  <td><button type="button" className="boton-peligro" aria-label={`Eliminar ${p.nombre}`} onClick={() => void eliminar(p)}>Eliminar</button></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
+        <Paginador pagina={tabla.pagina} paginas={tabla.paginas} total={tabla.total} onPagina={tabla.setPagina} etiqueta="proveedores" />
       </section>
     </div>
   )
@@ -254,19 +320,25 @@ function Proveedores() {
 
 function Clientes() {
   const { token } = useSesion()
-  const [q, setQ] = useState('')
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [error, setError] = useState<ApiError | null>(null)
+  const tabla = useTablaPaginada(clientes, (c) => `${c.nombre} ${c.nit} ${c.direccion ?? ''} ${c.municipio ?? ''}`)
 
   useEffect(() => {
     if (!token) return
     let vivo = true
-    const filtro = q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ''
-    api<Cliente[]>(`/clientes?limite=200${filtro}`, { token })
+    api<Cliente[]>('/clientes?limite=1000', { token })
       .then((filas) => { if (vivo) setClientes(filas) })
       .catch((fallo: unknown) => { if (vivo && fallo instanceof ApiError) setError(fallo) })
     return () => { vivo = false }
-  }, [q, token])
+  }, [token])
+
+  async function eliminar(cliente: Cliente) {
+    setError(null)
+    if (await eliminarConConfirmacion(token, `/clientes/${cliente.id}`, `¿Eliminar al cliente ${cliente.nombre}?`, setError)) {
+      setClientes((actuales) => actuales.filter((fila) => fila.id !== cliente.id))
+    }
+  }
 
   return (
     <div className="catalogo-rejilla">
@@ -275,22 +347,26 @@ function Clientes() {
         <FormularioCliente onCreado={(cliente) => setClientes((actuales) => [cliente, ...actuales])} />
       </section>
       <section className="tarjeta" aria-label="Clientes">
-        <h2>Clientes</h2>
+        <div className="encabezado-tabla">
+          <h2>Clientes ({clientes.length})</h2>
+          <BuscadorTabla valor={tabla.busqueda} onCambio={tabla.setBusqueda} placeholder="Nombre, NIT o dirección" />
+        </div>
         {error && <AvisoApi error={error} />}
-        <label>Buscar<input value={q} placeholder="Nombre o NIT" onChange={(e) => setQ(e.target.value)} /></label>
         <div className="tabla-contenedor">
           <table>
-            <thead><tr><th>Nombre</th><th>NIT</th><th>Dirección</th><th>Coordenadas</th></tr></thead>
+            <thead><tr><th>Nombre</th><th>NIT</th><th>Dirección</th><th>Coordenadas</th><th /></tr></thead>
             <tbody>
-              {clientes.map((c) => (
+              {tabla.visibles.map((c) => (
                 <tr key={c.id}>
                   <td>{c.nombre}</td><td>{c.nit}</td><td>{c.direccion ?? '—'}</td>
                   <td>{c.latitud != null && c.longitud != null ? `${c.latitud}, ${c.longitud}` : <span className="pastilla pastilla-error">Sin coordenadas</span>}</td>
+                  <td><button type="button" className="boton-peligro" aria-label={`Eliminar ${c.nombre}`} onClick={() => void eliminar(c)}>Eliminar</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <Paginador pagina={tabla.pagina} paginas={tabla.paginas} total={tabla.total} onPagina={tabla.setPagina} etiqueta="clientes" />
       </section>
     </div>
   )

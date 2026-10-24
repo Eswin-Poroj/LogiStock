@@ -206,6 +206,17 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Producto' }
         '404': { description: Producto no encontrado }
+    delete:
+      tags: [Catálogos]
+      summary: Eliminar producto
+      description: Solo administrador. 409 si tiene movimientos, pedidos, cotizaciones o existencias; en ese caso se desactiva.
+      operationId: eliminarProducto
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '204': { description: Eliminado }
+        '404': { description: No existe }
+        '409': { $ref: '#/components/responses/Conflicto' }
   /productos/{id}/sustitutos:
     get:
       tags: [Catálogos]
@@ -295,6 +306,17 @@ paths:
       responses:
         '200': { description: Cotización }
         '404': { description: No existe }
+    delete:
+      tags: [Pedidos]
+      summary: Eliminar cotización
+      description: La cotización no reservó stock; el pedido que generó no cambia.
+      operationId: eliminarCotizacion
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '204': { description: Eliminado }
+        '404': { description: No existe }
+        '409': { $ref: '#/components/responses/Conflicto' }
   /bodegas/{id}:
     patch:
       tags: [Catálogos]
@@ -318,6 +340,17 @@ paths:
       responses:
         '200': { description: Bodega actualizada }
         '404': { description: No existe }
+    delete:
+      tags: [Catálogos]
+      summary: Eliminar bodega
+      description: Solo administrador. 409 si tiene movimientos, pedidos, despachos, usuarios o existencias.
+      operationId: eliminarBodega
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '204': { description: Eliminado }
+        '404': { description: No existe }
+        '409': { $ref: '#/components/responses/Conflicto' }
   /vehiculos/{id}:
     patch:
       tags: [Catálogos]
@@ -333,6 +366,17 @@ paths:
             schema: { type: object, required: [activo], properties: { activo: { type: boolean } } }
       responses:
         '200': { description: Vehículo actualizado }
+    delete:
+      tags: [Catálogos]
+      summary: Eliminar vehículo
+      description: Despachador o administrador. 409 si tiene despachos.
+      operationId: eliminarVehiculo
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '204': { description: Eliminado }
+        '404': { description: No existe }
+        '409': { $ref: '#/components/responses/Conflicto' }
   /conductores/{id}:
     patch:
       tags: [Catálogos]
@@ -348,6 +392,17 @@ paths:
             schema: { type: object, required: [activo], properties: { activo: { type: boolean } } }
       responses:
         '200': { description: Conductor actualizado }
+    delete:
+      tags: [Catálogos]
+      summary: Eliminar conductor
+      description: Despachador o administrador. 409 si tiene despachos.
+      operationId: eliminarConductor
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '204': { description: Eliminado }
+        '404': { description: No existe }
+        '409': { $ref: '#/components/responses/Conflicto' }
   /bodegas:
     get:
       tags: [Catálogos]
@@ -593,6 +648,17 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Pedido' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
+    delete:
+      tags: [Pedidos]
+      summary: Eliminar pedido cancelado
+      description: Asesor o administrador. Solo pedidos cancelados (su stock ya se liberó); otro estado responde 409.
+      operationId: eliminarPedido
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '204': { description: Eliminado }
+        '404': { description: No existe }
+        '409': { $ref: '#/components/responses/Conflicto' }
   /pedidos/{id}/cancelar:
     post:
       tags: [Pedidos]
@@ -755,6 +821,17 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Despacho' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
+    delete:
+      tags: [Despachos]
+      summary: Eliminar despacho vacío
+      description: Solo despachos sin paradas; con pedidos asignados es historial (409).
+      operationId: eliminarDespacho
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '204': { description: Eliminado }
+        '404': { description: No existe }
+        '409': { $ref: '#/components/responses/Conflicto' }
   /despachos/{id}/iniciar:
     post:
       tags: [Despachos]
@@ -844,6 +921,101 @@ paths:
                     nombre: { type: string }
                     disponible: { type: integer }
                     estado: { type: string, enum: [stock_bajo, agotado] }
+  /proveedores/{id}:
+    delete:
+      tags: [Catálogos]
+      summary: Eliminar proveedor
+      description: Solo administrador. 409 si tiene recepciones.
+      operationId: eliminarProveedor
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '204': { description: Eliminado }
+        '404': { description: No existe }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /clientes/{id}:
+    delete:
+      tags: [Catálogos]
+      summary: Eliminar cliente
+      description: Solo administrador. 409 si tiene pedidos o cotizaciones.
+      operationId: eliminarCliente
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '204': { description: Eliminado }
+        '404': { description: No existe }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /configuracion:
+    get:
+      tags: [Sistema]
+      summary: Límites de negocio (IVA, descuento sin supervisor, ajuste sin aprobación)
+      operationId: configuracion
+      responses:
+        '200':
+          description: Porcentajes vigentes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  iva_pct: { type: number }
+                  descuento_max_pct: { type: number }
+                  ajuste_max_pct: { type: number }
+  /inventario/ajustes/pendientes:
+    get:
+      tags: [Inventario]
+      summary: Solicitudes de ajuste grande (CU-04 A1)
+      operationId: ajustesPendientes
+      parameters:
+        - { name: estado, in: query, schema: { type: string, enum: [pendiente, aprobado, rechazado], default: pendiente } }
+      responses:
+        '200': { description: Solicitudes con SKU, disponible actual y quién la pidió }
+  /inventario/ajustes/{id}/aprobar:
+    post:
+      tags: [Inventario]
+      summary: Aprobar y aplicar un ajuste pendiente
+      description: Solo administrador. 409 si ya se resolvió o si dejaría el disponible negativo.
+      operationId: aprobarAjuste
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { description: Aprobado y aplicado }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /inventario/ajustes/{id}/rechazar:
+    post:
+      tags: [Inventario]
+      summary: Rechazar un ajuste pendiente
+      description: Solo administrador.
+      operationId: rechazarAjuste
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { description: Rechazado }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /notificaciones:
+    get:
+      tags: [Notificaciones]
+      summary: Avisos del usuario (CU-05 E2)
+      operationId: misNotificaciones
+      responses:
+        '200': { description: Últimos 30 avisos, primero los recientes }
+  /notificaciones/{id}/leida:
+    post:
+      tags: [Notificaciones]
+      summary: Marcar un aviso propio como leído
+      operationId: marcarLeida
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { description: Marcado }
+        '404': { description: No existe o no es del usuario }
+  /notificaciones/leidas:
+    post:
+      tags: [Notificaciones]
+      summary: Marcar todos los avisos propios como leídos
+      operationId: marcarTodasLeidas
+      responses:
+        '200': { description: Listo }
 components:
   securitySchemes:
     bearerAuth:
@@ -1098,6 +1270,12 @@ components:
           minItems: 1
           items: { $ref: '#/components/schemas/LineaNueva' }
         cotizacion_id: { type: string, format: uuid, description: Cotización guardada de la que nace el pedido }
+        descuento_pct: { type: number, minimum: 0, maximum: 100, description: 'Sobre descuento_max_pct requiere autorizacion de un administrador (403 requiere_autorizacion)' }
+        autorizacion:
+          type: object
+          properties:
+            correo: { type: string, format: email }
+            clave: { type: string }
     LineaPedido:
       type: object
       properties:
@@ -1209,6 +1387,7 @@ components:
         salida_prevista: { type: string, format: date-time }
         distancia_km: { type: number, minimum: 0, description: La que devolvió calcular-ruta }
         duracion_min: { type: integer, minimum: 0 }
+        aceptar_exceso: { type: boolean, description: 'Confirma una carga mayor a la capacidad del vehículo; sin esto responde 409 con viajes_sugeridos' }
         paradas:
           type: array
           minItems: 1

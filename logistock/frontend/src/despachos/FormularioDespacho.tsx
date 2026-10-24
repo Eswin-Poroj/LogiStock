@@ -25,8 +25,10 @@ export function FormularioDespacho() {
   const [ruta, setRuta] = useState<Ruta | null>(null)
   const [despacho, setDespacho] = useState<Despacho | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
+  const [aceptaExceso, setAceptaExceso] = useState(false)
   const listaError = vehiculos.error ?? conductores.error ?? bodegas.error
-  const listo = esUuid(vehiculoId) && esUuid(conductorId) && esUuid(bodegaId) && marcados.length > 0
+  const excede = ruta?.excede_capacidad === true
+  const listo = esUuid(vehiculoId) && esUuid(conductorId) && esUuid(bodegaId) && marcados.length > 0 && (!excede || aceptaExceso)
 
   useEffect(() => {
     if (!token) return
@@ -54,7 +56,9 @@ export function FormularioDespacho() {
     if (!token || !esUuid(bodegaId) || marcados.length === 0) return
     setError(null)
     setRuta(null)
+    setAceptaExceso(false)
     const body: RutaSolicitud = { bodega_id: bodegaId, pedido_ids: marcados }
+    if (esUuid(vehiculoId)) body.vehiculo_id = vehiculoId
     try {
       setRuta(await api<Ruta>('/despachos/calcular-ruta', { method: 'POST', token, body }))
     } catch (fallo) {
@@ -77,6 +81,7 @@ export function FormularioDespacho() {
       body.distancia_km = ruta.distancia_km
       body.duracion_min = ruta.duracion_min
     }
+    if (aceptaExceso) body.aceptar_exceso = true
     try {
       const creado = await api<Despacho>('/despachos', { method: 'POST', token, body })
       setDespacho(creado)
@@ -124,7 +129,7 @@ export function FormularioDespacho() {
               </label>
               <label>
                 Vehículo
-                <select value={vehiculoId} onChange={(evento) => setVehiculoId(evento.target.value)}>
+                <select value={vehiculoId} onChange={(evento) => { setVehiculoId(evento.target.value); setRuta(null) }}>
                   <option value="">Selecciona</option>
                   {vehiculos.items.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}</option>)}
                 </select>
@@ -155,6 +160,9 @@ export function FormularioDespacho() {
                   <div><span>Paradas</span><strong>{ruta.paradas.length}</strong></div>
                 </div>
                 <p className="nota">Motor: {ruta.proveedor}</p>
+                {ruta.carga_kg !== undefined && ruta.capacidad_kg !== undefined && (
+                  <AvisoCarga ruta={ruta} acepta={aceptaExceso} onAcepta={setAceptaExceso} />
+                )}
                 <h3>Orden de entrega</h3>
                 <ol className="orden-entrega">
                   {ruta.paradas.map((parada) => (
@@ -177,5 +185,33 @@ export function FormularioDespacho() {
         </div>
       </div>
     </section>
+  )
+}
+
+/** CU-06 A2: el sistema advierte la sobrecarga y sugiere cómo dividir el viaje. */
+function AvisoCarga({ ruta, acepta, onAcepta }: { ruta: Ruta; acepta: boolean; onAcepta: (valor: boolean) => void }) {
+  const carga = ruta.carga_kg ?? 0
+  const capacidad = ruta.capacidad_kg ?? 0
+  const uso = capacidad > 0 ? Math.round((carga / capacidad) * 100) : 0
+  if (!ruta.excede_capacidad) {
+    return <p className="nota">Carga {carga} kg de {capacidad} kg ({uso} % del vehículo).</p>
+  }
+  return (
+    <div className="aviso-carga" role="alert">
+      <p><strong>Sobrecarga:</strong> {carga} kg para un vehículo de {capacidad} kg ({uso} %).</p>
+      {(ruta.pedidos_que_no_caben ?? []).length > 0
+        ? <p>{ruta.pedidos_que_no_caben!.join(', ')} por sí solo no cabe en este vehículo: elige uno de más capacidad.</p>
+        : (
+          <>
+            <p>Sugerencia: dividir en {ruta.viajes_sugeridos?.length} viajes.</p>
+            <ol>
+              {(ruta.viajes_sugeridos ?? []).map((viaje, i) => <li key={i}>Viaje {i + 1}: {viaje.pedidos.join(', ')} · {viaje.kg} kg</li>)}
+            </ol>
+          </>
+        )}
+      <label className="campo-casilla">
+        <input type="checkbox" checked={acepta} onChange={(e) => onAcepta(e.target.checked)} /> Asignar de todos modos (confirmo la sobrecarga)
+      </label>
+    </div>
   )
 }

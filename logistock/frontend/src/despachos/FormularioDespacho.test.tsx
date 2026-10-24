@@ -93,6 +93,7 @@ describe('planificar despacho', () => {
     expect(JSON.parse(String(primero?.init?.body))).toEqual({
       bodega_id: BODEGA_ID,
       pedido_ids: [PEDIDO_ID, OTRO_PEDIDO],
+      vehiculo_id: VEHICULO_ID,
     })
     await user.click(screen.getByRole('button', { name: 'Recalcular ruta' }))
     expect(red.llamadas.filter((llamada) => llamada.url.endsWith('/calcular-ruta'))).toHaveLength(2)
@@ -154,5 +155,31 @@ describe('planificar despacho', () => {
       { pedido_id: PEDIDO_ID, orden: 1, eta: '08:40' },
       { pedido_id: OTRO_PEDIDO, orden: 2, eta: '09:25' },
     ])
+  })
+
+  it('CU-06 A2 avisa la sobrecarga, sugiere dividir y exige confirmarla', async () => {
+    const red = instalarFetch((url, init) => {
+      if (url.endsWith('/despachos/calcular-ruta')) {
+        return { status: 200, body: { ...rutaOk, carga_kg: 1500, capacidad_kg: 1000, excede_capacidad: true, pedidos_que_no_caben: [],
+          viajes_sugeridos: [{ pedidos: ['PED-000231'], kg: 900 }, { pedidos: ['PED-000230'], kg: 600 }] } }
+      }
+      if (url.endsWith('/despachos') && init?.method === 'POST') return { status: 201, body: { id: DESPACHO_ID, codigo: 'R-15', estado: 'planificado', vehiculo: 'Camión 02', conductor: 'Luis', paradas: [] } }
+      return catalogos(url) ?? { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
+    })
+    redes.push(red)
+    renderConSesion(<App />, 'despachador', '/despachos')
+    const user = await elegirCatalogos()
+    await user.click(await screen.findByLabelText(/PED-000231/))
+    await user.click(screen.getByLabelText(/PED-000230/))
+    await user.click(screen.getByRole('button', { name: 'Calcular ruta' }))
+    const aviso = await screen.findByText(/Sobrecarga:/)
+    expect(aviso.parentElement).toHaveTextContent('1500 kg para un vehículo de 1000 kg (150 %)')
+    expect(screen.getByText('Viaje 1: PED-000231 · 900 kg')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Asignar despacho' })).toBeDisabled()
+    await user.click(screen.getByLabelText(/Asignar de todos modos/))
+    await user.click(screen.getByRole('button', { name: 'Asignar despacho' }))
+    expect(await screen.findByText('Despacho R-15')).toBeInTheDocument()
+    const post = red.llamadas.find((l) => l.url.endsWith('/despachos') && l.init?.method === 'POST')
+    expect(JSON.parse(String(post?.init?.body)).aceptar_exceso).toBe(true)
   })
 })

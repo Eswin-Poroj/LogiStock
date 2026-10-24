@@ -23,17 +23,13 @@ async function maxNumeroPedido(c: Client): Promise<number> {
   return Number(r.rows[0].m);
 }
 
-/** Quita paradas y pedidos PED-XXXXXX locales que dejan la secuencia desfasada. */
-export async function limpiarPedidosParaE2e(): Promise<void> {
-  await conPg(async (c) => {
-    await c.query(
-      `delete from despacho_paradas
-       where pedido_id in (select id from pedidos where numero ~ $1)`,
-      [PATRON_NUMERO_PEDIDO],
-    );
-    await c.query(`delete from pedidos where numero ~ $1`, [PATRON_NUMERO_PEDIDO]);
-    await aplicarSetvalSegunMax(c);
-  });
+/**
+ * Deja pedido_numero_seq en max(numero existente) para que los inserts de la suite no choquen
+ * con números ya usados. No borra nada: la base local también guarda pedidos reales de prueba
+ * manual, y la suite antes los eliminaba todos para reiniciar la numeración.
+ */
+export async function alinearSecuenciaParaE2e(): Promise<void> {
+  await conPg(async (c) => { await aplicarSetvalSegunMax(c); });
 }
 
 /** Tras PB-05: el siguiente nextval debe ser max(numero existente)+1. */

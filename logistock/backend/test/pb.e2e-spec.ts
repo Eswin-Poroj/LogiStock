@@ -105,22 +105,23 @@ describe('PB base de datos', () => {
   });
 
   it('PB-05 número de pedido secuencial', async () => {
-    // Criterio: Se genera PED-000001 y los siguientes consecutivos.
+    // Criterio: cada pedido toma el número siguiente al último existente, sin huecos.
     await conPg(async (c) => {
-      await c.query("delete from pedidos where numero in ('PED-000001', 'PED-000002')");
-      await c.query("select setval('pedido_numero_seq', 1, false)");
-      const a = await c.query(
-        'insert into pedidos (cliente_id, bodega_id, creado_por) values ($1,$2,$3) returning numero',
-        [semilla.clienteId, semilla.bodegaId, semilla.asesor.id],
-      );
-      const b = await c.query(
-        'insert into pedidos (cliente_id, bodega_id, creado_por) values ($1,$2,$3) returning numero',
-        [semilla.clienteId, semilla.bodegaId, semilla.asesor.id],
-      );
-      expect(a.rows[0].numero).toBe('PED-000001');
-      expect(b.rows[0].numero).toBe('PED-000002');
       await sincronizarPedidoNumeroSeqAlMaximo(c);
-      console.log('PB-05 evidencia: la secuencia local pedido_numero_seq quedó adelantada');
+      const insertar = () => c.query<{ id: string; numero: string }>(
+        'insert into pedidos (cliente_id, bodega_id, creado_por) values ($1,$2,$3) returning id, numero',
+        [semilla.clienteId, semilla.bodegaId, semilla.asesor.id],
+      );
+      const a = (await insertar()).rows[0];
+      const b = (await insertar()).rows[0];
+      try {
+        expect(a.numero).toMatch(/^PED-\d{6}$/);
+        expect(Number(b.numero.slice(4))).toBe(Number(a.numero.slice(4)) + 1);
+      } finally {
+        // Solo se borran los dos pedidos que insertó esta prueba.
+        await c.query('delete from pedidos where id = any($1)', [[a.id, b.id]]);
+        await sincronizarPedidoNumeroSeqAlMaximo(c);
+      }
     });
   });
 

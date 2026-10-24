@@ -1,5 +1,5 @@
 import {
-  BadRequestException, ConflictException, HttpException, Injectable, NotFoundException,
+  BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -40,6 +40,8 @@ export class PedidosService {
   async crear(dto: PedidoNuevoDto, usuario: UsuarioActual) {
     const politica = dto.politica_faltantes ?? 'rechazar';
     const db = this.supabase.db;
+    const descuentoPct = dto.descuento_pct ?? 0;
+    const autorizadoPor = await this.autorizarDescuento(descuentoPct, dto.autorizacion, usuario);
 
     // Se agrupan cantidades repetidas del mismo producto
     const pedidas = new Map<string, number>();
@@ -99,8 +101,10 @@ export class PedidosService {
 
         // Totales solo con líneas reservadas
         const subtotal = round2(conStock.reduce((a, l) => a + l.cantidad * l.precio_unitario, 0));
-        const iva = round2((subtotal * this.config.get<number>('ivaPorcentaje', 12)) / 100);
-        const total = round2(subtotal + iva);
+        // El descuento se aplica antes del IVA, sobre las líneas reservadas.
+        const descuento = round2((subtotal * descuentoPct) / 100);
+        const iva = round2(((subtotal - descuento) * this.config.get<number>('ivaPorcentaje', 12)) / 100);
+        const total = round2(subtotal - descuento + iva);
 
         const { error: eLin } = await db.from('pedido_lineas').insert(
           resueltas.map((l) => ({
@@ -109,7 +113,9 @@ export class PedidosService {
           })),
         );
         if (eLin) throw new BadRequestException(eLin.message);
-        await db.from('pedidos').update({ subtotal, iva, total }).eq('id', pedido.id);
+        await db.from('pedidos').update({
+          subtotal, iva, total, descuento_pct: descuentoPct, descuento, autorizado_por: autorizadoPor,
+        }).eq('id', pedido.id);
 
         await this.colaPicking.add('crear-tarea', { pedido_id: pedido.id }, {
           attempts: 3, backoff: { type: 'exponential', delay: 1000 }, removeOnComplete: true,
@@ -123,6 +129,30 @@ export class PedidosService {
       }
       return this.obtener(pedido.id);
     });
+  }
+
+  /**
+   * CU-01 A2: hasta el límite configurado el asesor aplica el descuento solo; por encima hace
+   * falta un administrador. Si quien crea el pedido ya es administrador, se registra a sí mismo.
+   * Devuelve quién autorizó (o null si no hizo falta).
+   */
+  private async autorizarDescuento(pct: number, autorizacion: PedidoNuevoDto['autorizacion'], usuario: UsuarioActual): Promise<string | null> {
+    const maximo = this.config.get<number>('descuentoMaxPct', 10);
+    if (pct <= maximo) return null;
+    if (usuario.rol === 'administrador') return usuario.id;
+    if (!autorizacion) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: `El descuento de ${pct} % supera el máximo de ${maximo} %: requiere la autorización de un supervisor`,
+        requiere_autorizacion: true,
+        descuento_max_pct: maximo,
+      });
+    }
+    const { data, error } = await this.supabase.auth.auth.signInWithPassword({ email: autorizacion.correo, password: autorizacion.clave });
+    if (error || !data.user) throw new ForbiddenException('Las credenciales del supervisor no son válidas');
+    const { data: perfil } = await this.supabase.db.from('usuarios').select('id, rol, activo').eq('id', data.user.id).maybeSingle();
+    if (!perfil?.activo || perfil.rol !== 'administrador') throw new ForbiddenException('Solo un administrador activo puede autorizar el descuento');
+    return perfil.id as string;
   }
 
   /** Libera lo reservado y elimina el pedido cuando la creación no se completó. */
@@ -160,7 +190,7 @@ export class PedidosService {
   async obtener(id: string) {
     const { data, error } = await this.supabase.db
       .from('pedidos')
-      .select('id, numero, bodega_id, estado, subtotal, iva, total, created_at, clientes(nombre), pedido_lineas(id, producto_id, cantidad, precio_unitario, subtotal, estado, productos(sku, nombre))')
+      .select('id, numero, bodega_id, estado, subtotal, iva, total, descuento_pct, descuento, created_at, clientes(nombre), autorizador:usuarios!pedidos_autorizado_por_fkey(nombre), tareas_picking(estado), pedido_lineas(id, producto_id, cantidad, precio_unitario, subtotal, estado, productos(sku, nombre))')
       .eq('id', id).maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException('Pedido no encontrado');
@@ -168,11 +198,25 @@ export class PedidosService {
     return {
       id: p.id, numero: p.numero, cliente: p.clientes?.nombre, bodega_id: p.bodega_id, estado: p.estado,
       subtotal: p.subtotal, iva: p.iva, total: p.total, created_at: p.created_at,
+      descuento_pct: Number(p.descuento_pct ?? 0), descuento: Number(p.descuento ?? 0), autorizado_por: p.autorizador?.nombre ?? null,
+      estado_picking: (Array.isArray(p.tareas_picking) ? p.tareas_picking[0] : p.tareas_picking)?.estado ?? null,
       lineas: p.pedido_lineas.map((l: any) => ({
         id: l.id, producto_id: l.producto_id, sku: l.productos.sku, nombre: l.productos.nombre,
         cantidad: l.cantidad, precio_unitario: l.precio_unitario, subtotal: l.subtotal, estado: l.estado,
       })),
     };
+  }
+
+  async eliminar(id: string) {
+    const { data, error } = await this.supabase.db.from('pedidos').select('estado, numero').eq('id', id).maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Pedido no encontrado');
+    if (data.estado !== 'cancelado') {
+      throw new ConflictException(`El pedido ${data.numero} está ${data.estado}. Solo se eliminan pedidos cancelados; cancélalo primero para liberar el stock.`);
+    }
+    const borrado = await this.supabase.db.from('pedidos').delete().eq('id', id);
+    if (borrado.error?.code === '23503') throw new ConflictException('El pedido está en una ruta de despacho; no se puede eliminar.');
+    if (borrado.error) throw new BadRequestException(borrado.error.message);
   }
 
   /** Cancela y libera el stock reservado. Solo Creado o En preparación. */

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { Roles, UsuarioActual } from '../../common/auth/roles.decorator';
@@ -26,5 +26,12 @@ export class CotizacionesController {
   @Get(':id')
   obtener(@Param('id', ParseUUIDPipe) id: string) {
     return this.servicio.obtener(id);
+  }
+
+  /** La cotización no reservó stock: se puede borrar siempre; el pedido que generó no cambia. */
+  @HttpCode(204)
+  @Delete(':id')
+  eliminar(@Param('id', ParseUUIDPipe) id: string) {
+    return this.servicio.eliminar(id);
   }
 }

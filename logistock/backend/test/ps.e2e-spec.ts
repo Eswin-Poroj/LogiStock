@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import request from 'supertest';
 import { assertEntornoLocal, crearApp } from './helpers/local';
-import { crearProducto, sembrar, Semilla } from './helpers/semilla';
+import { Semilla, crearProducto, pickingCompletado, sembrar } from './helpers/semilla';
 
 jest.setTimeout(120000);
 
@@ -113,6 +113,7 @@ describe('PS seguridad', () => {
         bodega_id: semilla.bodegaId,
         lineas: [{ producto_id: otro, cantidad: 1 }],
       });
+    await pickingCompletado(admin, ped2.body.id);
     const despacho = await request(app.getHttpServer())
       .post('/api/v1/despachos')
       .set('Authorization', `Bearer ${semilla.admin.token}`)
@@ -130,8 +131,6 @@ describe('PS seguridad', () => {
     expect(pedido.status).toBe(201);
     expect(entrada.status).toBe(201);
     expect(despacho.status).toBe(201);
-    if (reporte.status === 501) {
-      throw new Error(`BLOQUEADO: reportes devolvió 501. ${JSON.stringify(status)}`);
-    }
+    expect(reporte.status).toBe(200);
   });
 });

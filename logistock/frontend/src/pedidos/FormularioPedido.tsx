@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { MenuPedidos } from './MenuPedidos'
+import { useConfiguracion } from '../comun/useConfiguracion'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
 import { useListado } from '../api/useListado'
@@ -16,6 +18,7 @@ import {
   lineaReservable,
   pedidoValido,
   politicaDelFormulario,
+  requiereAutorizacion,
   resumenPedido,
 } from './pedidoValido'
 import type { LineaCotizacion } from './pedidoValido'
@@ -28,8 +31,14 @@ function avisoStock409(error: ApiError): string {
 }
 
 export function FormularioPedido() {
-  const { token } = useSesion()
+  const { token, usuario } = useSesion()
+  const config = useConfiguracion(token)
+  const [descuentoTexto, setDescuentoTexto] = useState('0')
+  const [supervisorCorreo, setSupervisorCorreo] = useState('')
+  const [supervisorClave, setSupervisorClave] = useState('')
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const cotizacionDeEnlace = params.get('cotizacion')
   const clientes = useListado<Cliente>('/clientes?limite=500', token)
   const [clientesNuevos, setClientesNuevos] = useState<Cliente[]>([])
   const [altaCliente, setAltaCliente] = useState(false)
@@ -80,11 +89,23 @@ export function FormularioPedido() {
     return () => { vivo = false }
   }, [token])
 
+  // Desde Cotizaciones › Abrir llega ?cotizacion=<id>: se carga una sola vez.
+  const [enlaceCargado, setEnlaceCargado] = useState(false)
+  useEffect(() => {
+    if (!token || !cotizacionDeEnlace || enlaceCargado) return
+    setEnlaceCargado(true)
+    void abrirCotizacion(cotizacionDeEnlace)
+  })
+
   const listaClientes = [...clientesNuevos, ...clientes.items.filter((fila) => !clientesNuevos.some((nuevo) => nuevo.id === fila.id))]
   const cliente = listaClientes.find((fila) => fila.id === clienteId)
   const bodega = bodegas.items.find((fila) => fila.id === bodegaId)
-  const resumen = resumenPedido(lineas)
-  const valido = pedidoValido({ cliente_id: clienteId, bodega_id: bodegaId, lineas })
+  const descuentoPct = Number(descuentoTexto)
+  const descuentoOk = descuentoTexto.trim() !== '' && Number.isFinite(descuentoPct) && descuentoPct >= 0 && descuentoPct <= 100
+  const resumen = resumenPedido(lineas, descuentoOk ? descuentoPct : 0)
+  const pideSupervisor = descuentoOk && requiereAutorizacion(descuentoPct, config.descuento_max_pct, usuario?.rol ?? '')
+  const supervisorOk = !pideSupervisor || (supervisorCorreo.includes('@') && supervisorClave.length > 0)
+  const valido = pedidoValido({ cliente_id: clienteId, bodega_id: bodegaId, lineas }) && descuentoOk && supervisorOk
   const errorLista = clientes.error ?? bodegas.error ?? catalogo.error
   const errorConfirmacion = errorLista ? null : error
   const stock409 = errorConfirmacion?.status === 409 && (errorConfirmacion.lineasSinStock?.length ?? 0) > 0
@@ -164,6 +185,8 @@ export function FormularioPedido() {
       lineas: lineas.map((linea) => ({ producto_id: linea.producto_id, cantidad: linea.cantidad })),
     }
     if (cotizacionId) body.cotizacion_id = cotizacionId
+    if (descuentoPct > 0) body.descuento_pct = descuentoPct
+    if (pideSupervisor) body.autorizacion = { correo: supervisorCorreo.trim(), clave: supervisorClave }
     try {
       const creado = await api<Pedido>('/pedidos', { method: 'POST', token, body })
       navigate(`/pedidos/${creado.id}`)
@@ -246,11 +269,15 @@ export function FormularioPedido() {
     setSustitutosDe(null)
     setSustitutos(null)
     setCotizacionId(null)
+    setDescuentoTexto('0')
+    setSupervisorCorreo('')
+    setSupervisorClave('')
   }
 
   return (
     <section className="panel panel-pedido">
       <Encabezado titulo="Nuevo pedido de venta">
+        <MenuPedidos />
         {cotizaciones.length > 0 && (
           <select aria-label="Abrir cotización" value="" onChange={(evento) => void abrirCotizacion(evento.target.value)}>
             <option value="">Abrir cotización…</option>
@@ -426,7 +453,7 @@ export function FormularioPedido() {
                               <td>{producto.nombre}</td>
                               <td className="num">{bodega ? disponible : '—'}</td>
                               <td className="num">{quetzales(Number(producto.precio_unitario))}</td>
-                              <td>
+                              <td className="acciones-fila">
                                 <button type="button" aria-label={`Agregar ${producto.sku}`} disabled={!bodega} onClick={() => void agregarProducto(producto)}>
                                   {enPedido ? '+1' : 'Agregar'}
                                 </button>
@@ -445,8 +472,21 @@ export function FormularioPedido() {
               <h2>Resumen</h2>
               <p>Líneas confirmadas <span>{resumen.confirmadas} de {resumen.totalLineas}</span></p>
               <p>Subtotal <span>{quetzales(resumen.subtotal)}</span></p>
+              <label className="campo-descuento">
+                Descuento %
+                <input type="number" min={0} max={100} step="0.5" value={descuentoTexto} onChange={(evento) => setDescuentoTexto(evento.target.value)} />
+              </label>
+              {resumen.descuento > 0 && <p>Descuento {descuentoPct} % <span>-{quetzales(resumen.descuento)}</span></p>}
               <p>IVA {IVA_PORCENTAJE} % <span>{quetzales(resumen.iva)}</span></p>
               <p className="resumen-total">Total <span>{quetzales(resumen.total)}</span></p>
+              {pideSupervisor && (
+                <fieldset className="autorizacion-supervisor">
+                  <legend>Autorización de supervisor</legend>
+                  <p className="nota">El descuento supera el máximo de {config.descuento_max_pct} %. Un administrador debe autorizarlo con su cuenta.</p>
+                  <label>Correo del supervisor<input type="email" autoComplete="off" value={supervisorCorreo} onChange={(e) => setSupervisorCorreo(e.target.value)} /></label>
+                  <label>Contraseña del supervisor<input type="password" autoComplete="new-password" value={supervisorClave} onChange={(e) => setSupervisorClave(e.target.value)} /></label>
+                </fieldset>
+              )}
               <button type="button" className="boton-primario" disabled={!valido} onClick={() => void confirmar()}>Confirmar pedido</button>
               <button type="button" disabled={!esUuid(clienteId) || !esUuid(bodegaId) || lineas.length === 0} onClick={() => void guardarCotizacion()}>Guardar como cotización</button>
               {avisoCotizacion && <p role="status">{avisoCotizacion}</p>}

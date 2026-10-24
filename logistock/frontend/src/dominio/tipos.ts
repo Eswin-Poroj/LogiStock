@@ -56,6 +56,7 @@ export interface Producto {
   stock_minimo: number
   activo: boolean
   categoria?: string | null
+  peso_kg?: number
 }
 
 export interface Proveedor {
@@ -152,6 +153,8 @@ export interface PedidoNuevo {
   politica_faltantes: PoliticaFaltantes
   lineas: { producto_id: string; cantidad: number }[]
   cotizacion_id?: string
+  descuento_pct?: number
+  autorizacion?: { correo: string; clave: string }
 }
 
 export interface LineaPedido {
@@ -175,6 +178,10 @@ export interface Pedido {
   bodega_id: string
   subtotal: number
   iva: number
+  descuento_pct?: number
+  descuento?: number
+  autorizado_por?: string | null
+  estado_picking?: EstadoPicking | null
   lineas: LineaPedido[]
 }
 
@@ -223,6 +230,16 @@ export interface CompletarPicking {
 export interface RutaSolicitud {
   bodega_id: string
   pedido_ids: string[]
+  vehiculo_id?: string
+}
+
+/** CU-06 A2: carga del viaje frente al vehículo; viene en calcular-ruta y en el 409 de asignar. */
+export interface CapacidadViaje {
+  carga_kg: number
+  capacidad_kg: number
+  excede_capacidad: boolean
+  viajes_sugeridos: { pedidos: string[]; kg: number }[]
+  pedidos_que_no_caben: string[]
 }
 
 export interface ParadaRuta {
@@ -250,6 +267,11 @@ export interface Ruta {
   paradas: ParadaRuta[]
   /** Recorrido por carretera como pares [latitud, longitud]. */
   trazo?: [number, number][]
+  carga_kg?: number
+  capacidad_kg?: number
+  excede_capacidad?: boolean
+  viajes_sugeridos?: CapacidadViaje['viajes_sugeridos']
+  pedidos_que_no_caben?: string[]
 }
 
 export interface DespachoNuevo {
@@ -259,6 +281,7 @@ export interface DespachoNuevo {
   distancia_km?: number
   duracion_min?: number
   paradas: { pedido_id: string; orden: number; eta?: string }[]
+  aceptar_exceso?: boolean
 }
 
 export interface ParadaDespacho {

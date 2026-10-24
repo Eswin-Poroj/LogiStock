@@ -40,7 +40,7 @@ describe('catálogo', () => {
     expect(within(screen.getByRole('region', { name: 'Productos' })).getByText('FER-0001')).toBeInTheDocument()
     const post = red.llamadas.find((llamada) => llamada.init?.method === 'POST')
     expect(JSON.parse(String(post?.init?.body))).toEqual({
-      categoria: 'Ferretería', nombre: 'Cemento gris 42.5 kg', unidad: 'saco', precio_unitario: 78, stock_minimo: 20, bodega_id: BODEGA_ID, ubicacion: 'A-03-2',
+      categoria: 'Ferretería', nombre: 'Cemento gris 42.5 kg', unidad: 'saco', precio_unitario: 78, stock_minimo: 20, peso_kg: 0, bodega_id: BODEGA_ID, ubicacion: 'A-03-2',
     })
   })
 

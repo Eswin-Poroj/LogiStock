@@ -36,7 +36,7 @@ describe('iniciar ruta', () => {
 
   it('muestra el 409 si la ruta ya no está planificada', async () => {
     const user = userEvent.setup()
-    redes.push(instalarFetch((url, init) => {
+    redes.push(instalarFetch((_url, init) => {
       if (init?.method === 'POST') return { status: 409, body: { statusCode: 409, message: 'El despacho está en_ruta; solo se inicia una ruta planificada', error: 'Conflict' } }
       return { status: 200, body: [planificado] }
     }))
@@ -69,7 +69,7 @@ describe('entrega', () => {
 
   it('muestra el 409 y no escribe una hora de entrega', async () => {
     const user = userEvent.setup()
-    redes.push(instalarFetch((url, init) => {
+    redes.push(instalarFetch((_url, init) => {
       if (!init?.method || init.method === 'GET') return { status: 200, body: [enRuta] }
       return { status: 409, body: { statusCode: 409, message: 'Parada ya entregada', error: 'Conflict' } }
     }))

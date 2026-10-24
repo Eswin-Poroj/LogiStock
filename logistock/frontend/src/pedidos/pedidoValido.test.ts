@@ -9,6 +9,7 @@ import {
   lineaSinStock,
   pedidoValido,
   politicaDelFormulario,
+  requiereAutorizacion,
   resumenPedido,
 } from './pedidoValido'
 import type { LineaCotizacion } from './pedidoValido'
@@ -100,5 +101,16 @@ describe('cotización del mockup', () => {
   it('formatea quetzales como el mockup', () => {
     expect(quetzales(7484.4)).toBe('Q 7,484.40')
     expect(quetzales(78)).toBe('Q 78.00')
+  })
+
+  it('aplica el descuento antes del IVA', () => {
+    const linea = { producto_id: '44444444-4444-4444-8444-444444444444', sku: 'A', nombre: 'A', cantidad: 2, disponible: 10, precio_unitario: 100, resolucion: 'pendiente' as const }
+    expect(resumenPedido([linea], 15)).toMatchObject({ subtotal: 200, descuento: 30, iva: 20.4, total: 190.4 })
+  })
+
+  it('pide supervisor solo sobre el máximo y si no es administrador', () => {
+    expect(requiereAutorizacion(10, 10, 'asesor_ventas')).toBe(false)
+    expect(requiereAutorizacion(15, 10, 'asesor_ventas')).toBe(true)
+    expect(requiereAutorizacion(15, 10, 'administrador')).toBe(false)
   })
 })

@@ -31,10 +31,10 @@ Contrato HTTP en `logistock/docs/openapi.yaml`. La API expone el prefijo global 
    - API Supabase: `http://127.0.0.1:54321`
    - Base de datos: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
 
-   Aplica el esquema y luego las migraciones de `logistock/db/migraciones/` en orden (ajuste de stock, salida del reservado al despachar, cotizaciones y SKU automático):
+   Aplica el esquema y luego las migraciones de `logistock/db/migraciones/` en orden (ajuste de stock, salida del reservado al despachar, cotizaciones, SKU automático, descuentos autorizados, ajustes por aprobar, peso de productos y avisos):
 
    ```bash
-   psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f logistock/db/migraciones/001_funcionalidades_completas.sql -f logistock/db/migraciones/002_sku_automatico.sql -f logistock/db/grants_local.sql
+   psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f logistock/db/migraciones/001_funcionalidades_completas.sql -f logistock/db/migraciones/002_sku_automatico.sql -f logistock/db/migraciones/003_reglas_pendientes_rup.sql -f logistock/db/grants_local.sql
    ```
 
    Copia `logistock/backend/.env.example` a `logistock/backend/.env` y completa `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` con lo que devuelva `supabase status` (no subas ese archivo a git).
@@ -93,3 +93,9 @@ La interfaz muestra los códigos HTTP que devuelve la API; no inventa stock, rut
 - **Despacho (CU-06):** solo acepta pedidos en preparación con el picking completado (409 si no) y descuenta el reservado del inventario al asignar.
 - **Entregas (CU-07):** primero se inicia la ruta (`POST /despachos/{id}/iniciar`); confirmar una parada de una ruta no iniciada responde 409.
 - **Recuperar contraseña (CU-11 A1):** en local el correo llega a Inbucket/Mailpit en `http://127.0.0.1:54324`.
+- **Descuentos (CU-01 A2):** hasta `DESCUENTO_MAX_PCT` (10 %) los aplica el asesor; por encima, un administrador los autoriza con su correo y contraseña y queda registrado quién lo hizo.
+- **Ajustes grandes (CU-04 A1):** si un operario ajusta más de `AJUSTE_MAX_PCT` (20 %) del disponible, el ajuste queda pendiente en Inventario › Aprobaciones hasta que un administrador lo apruebe o rechace.
+- **Capacidad del vehículo (CU-06 A2):** con el peso por unidad de cada producto se compara la carga con el vehículo; si excede se sugiere dividir en viajes y solo se asigna confirmando la sobrecarga.
+- **Faltante en picking (CU-05 E2):** el asesor que creó el pedido recibe un aviso (campana del menú) para ofrecer sustituto o backorder.
+- **Pruebas e2e:** escriben en la base local, pero ya no borran pedidos existentes; solo los que crean.
+

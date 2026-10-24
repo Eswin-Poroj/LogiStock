@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpException, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, ConflictException, Controller, Delete, Get, HttpCode, HttpException, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsEmail, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
@@ -22,12 +22,15 @@ export class ProductoNuevoDto {
   @IsOptional() @IsString() unidad?: string;
   @IsNumber() @Min(0) precio_unitario: number;
   @IsOptional() @IsInt() @Min(0) stock_minimo?: number;
+  /** Peso por unidad: con él se compara la carga del viaje con la capacidad del vehículo (CU-06 A2). */
+  @IsOptional() @IsNumber() @Min(0) peso_kg?: number;
   /** Visión: catálogo por SKU con ubicación en bodega. Crea la fila de stock en 0 con esa ubicación. */
   @IsOptional() @IsUUID() bodega_id?: string;
   @IsOptional() @IsString() ubicacion?: string;
 }
 
 export class ProductoCambioDto {
+  @IsOptional() @IsNumber() @Min(0) peso_kg?: number;
   @IsOptional() @IsString() @IsNotEmpty() nombre?: string;
   @IsOptional() @IsString() @IsNotEmpty() categoria?: string;
   @IsOptional() @IsString() unidad?: string;
@@ -103,6 +106,24 @@ export class CatalogosController {
     throw new HttpException(error.message, error.code === '23505' ? 409 : 400);
   }
 
+  /**
+   * Borra la fila si nada la referencia. Si tiene historial (FK 23503) responde 409:
+   * el historial de pedidos, movimientos y rutas no se reescribe; se desactiva en su lugar.
+   */
+  private async eliminar(tabla: string, id: string, enUso: string) {
+    const { data, error } = await this.supabase.db.from(tabla).delete().eq('id', id).select('id');
+    if (error?.code === '23503') throw new ConflictException(enUso);
+    if (error) this.fallo(error);
+    if (!data?.length) throw new NotFoundException('No existe');
+  }
+
+  /** Cuenta filas que referencian el registro; sirve para avisar antes de tocar stock. */
+  private async usos(tabla: string, columna: string, id: string) {
+    const { count, error } = await this.supabase.db.from(tabla).select('id', { count: 'exact', head: true }).eq(columna, id);
+    if (error) this.fallo(error);
+    return count ?? 0;
+  }
+
   @Get('clientes')
   async clientes(@Query('q') q?: string, @Query('pagina') pagina = 1, @Query('limite') limite = 20) {
     const desde = (Number(pagina) - 1) * Number(limite);
@@ -166,6 +187,25 @@ export class CatalogosController {
     return data;
   }
 
+  /** Solo productos sin historial y sin existencias; si no, se desactivan. */
+  @Roles('administrador')
+  @HttpCode(204)
+  @Delete('productos/:id')
+  async eliminarProducto(@Param('id', ParseUUIDPipe) id: string) {
+    const enUso = 'El producto tiene movimientos, pedidos o cotizaciones. Desactívalo para que deje de venderse.';
+    for (const tabla of ['movimientos_stock', 'pedido_lineas', 'recepcion_lineas', 'cotizacion_lineas']) {
+      if (await this.usos(tabla, 'producto_id', id)) throw new ConflictException(enUso);
+    }
+    const { data: stock, error } = await this.supabase.db.from('stock').select('disponible, reservado, en_transito, danado').eq('producto_id', id);
+    if (error) this.fallo(error);
+    if ((stock ?? []).some((s) => s.disponible + s.reservado + s.en_transito + s.danado > 0)) {
+      throw new ConflictException('El producto todavía tiene existencias. Ajústalas a cero o desactívalo.');
+    }
+    const limpia = await this.supabase.db.from('stock').delete().eq('producto_id', id);
+    if (limpia.error) this.fallo(limpia.error);
+    await this.eliminar('productos', id, enUso);
+  }
+
   /**
    * CU-01 E1: sustitutos de un producto sin stock. Misma categoría (prefijo del SKU),
    * activos y con disponible suficiente en la bodega; primero los de más existencia.
@@ -189,6 +229,20 @@ export class CatalogosController {
         producto_id: s.productos.id, sku: s.productos.sku, nombre: s.productos.nombre,
         precio_unitario: Number(s.productos.precio_unitario), disponible: s.disponible,
       }));
+  }
+
+  @Roles('administrador')
+  @HttpCode(204)
+  @Delete('proveedores/:id')
+  eliminarProveedor(@Param('id', ParseUUIDPipe) id: string) {
+    return this.eliminar('proveedores', id, 'El proveedor tiene recepciones registradas; no se puede eliminar.');
+  }
+
+  @Roles('administrador')
+  @HttpCode(204)
+  @Delete('clientes/:id')
+  eliminarCliente(@Param('id', ParseUUIDPipe) id: string) {
+    return this.eliminar('clientes', id, 'El cliente tiene pedidos o cotizaciones; no se puede eliminar.');
   }
 
   @Get('proveedores')
@@ -280,6 +334,13 @@ export class CatalogosController {
     return data;
   }
 
+  @Roles('despachador')
+  @HttpCode(204)
+  @Delete('vehiculos/:id')
+  eliminarVehiculo(@Param('id', ParseUUIDPipe) id: string) {
+    return this.eliminar('vehiculos', id, 'El vehículo tiene despachos registrados. Desactívalo para que no se asigne.');
+  }
+
   @Get('conductores')
   async conductores(@Query('incluir_inactivos') inactivos?: string) {
     let consulta = this.supabase.db.from('conductores').select('*').order('nombre');
@@ -304,5 +365,29 @@ export class CatalogosController {
     if (error) this.fallo(error);
     if (!data) throw new NotFoundException('Conductor no encontrado');
     return data;
+  }
+
+  @Roles('despachador')
+  @HttpCode(204)
+  @Delete('conductores/:id')
+  eliminarConductor(@Param('id', ParseUUIDPipe) id: string) {
+    return this.eliminar('conductores', id, 'El conductor tiene despachos registrados. Desactívalo para que no se asigne.');
+  }
+
+  /** Solo bodegas sin movimientos, pedidos, despachos ni existencias. */
+  @Roles('administrador')
+  @HttpCode(204)
+  @Delete('bodegas/:id')
+  async eliminarBodega(@Param('id', ParseUUIDPipe) id: string) {
+    const enUso = 'La bodega tiene movimientos, pedidos, despachos o usuarios asignados. Desactívala en su lugar.';
+    for (const tabla of ['movimientos_stock', 'pedidos', 'despachos', 'recepciones', 'cotizaciones']) {
+      if (await this.usos(tabla, 'bodega_id', id)) throw new ConflictException(enUso);
+    }
+    const { data: stock, error } = await this.supabase.db.from('stock').select('disponible, reservado, en_transito, danado').eq('bodega_id', id);
+    if (error) this.fallo(error);
+    if ((stock ?? []).some((s) => s.disponible + s.reservado + s.en_transito + s.danado > 0)) throw new ConflictException(enUso);
+    const limpia = await this.supabase.db.from('stock').delete().eq('bodega_id', id);
+    if (limpia.error) this.fallo(limpia.error);
+    await this.eliminar('bodegas', id, enUso);
   }
 }
