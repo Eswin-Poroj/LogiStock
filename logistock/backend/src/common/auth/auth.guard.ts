@@ -16,7 +16,7 @@ export class AuthGuard implements CanActivate {
     const token = (req.headers['authorization'] as string | undefined)?.replace(/^Bearer\s+/i, '');
     if (!token) throw new UnauthorizedException('Falta el token');
 
-    const { data, error } = await this.supabase.db.auth.getUser(token);
+    const { data, error } = await this.supabase.auth.auth.getUser(token);
     if (error || !data.user) throw new UnauthorizedException('Token inválido o vencido');
 
     const { data: perfil } = await this.supabase.db

@@ -18,7 +18,7 @@ export class AuthController {
   @Publico()
   @Post('login')
   async login(@Body() dto: LoginDto) {
-    const { data, error } = await this.supabase.db.auth.signInWithPassword({
+    const { data, error } = await this.supabase.auth.auth.signInWithPassword({
       email: dto.correo,
       password: dto.clave,
     });
