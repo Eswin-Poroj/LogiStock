@@ -53,13 +53,14 @@ export class CotizacionesService {
 
   async obtener(id: string) {
     const { data, error } = await this.supabase.db.from('cotizaciones')
-      .select('id, numero, cliente_id, bodega_id, subtotal, iva, total, pedido_id, created_at, clientes(nombre), cotizacion_lineas(producto_id, cantidad, precio_unitario, subtotal, productos(sku, nombre))')
+      .select('id, numero, cliente_id, bodega_id, subtotal, iva, total, pedido_id, created_at, clientes(nombre, nit, direccion), bodegas(nombre), autor:usuarios!cotizaciones_creado_por_fkey(nombre), cotizacion_lineas(producto_id, cantidad, precio_unitario, subtotal, productos(sku, nombre))')
       .eq('id', id).maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException('Cotización no encontrada');
     const c: any = data;
     return {
       id: c.id, numero: c.numero, cliente_id: c.cliente_id, cliente: c.clientes?.nombre ?? '', bodega_id: c.bodega_id,
+      cliente_nit: c.clientes?.nit ?? '', cliente_direccion: c.clientes?.direccion ?? '', bodega: c.bodegas?.nombre ?? '', asesor: c.autor?.nombre ?? '',
       subtotal: Number(c.subtotal), iva: Number(c.iva), total: Number(c.total), pedido_id: c.pedido_id, created_at: c.created_at,
       lineas: (c.cotizacion_lineas ?? []).map((l: any) => ({
         producto_id: l.producto_id, sku: l.productos.sku, nombre: l.productos.nombre,

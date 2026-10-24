@@ -34,7 +34,7 @@ Contrato HTTP en `logistock/docs/openapi.yaml`. La API expone el prefijo global 
    Aplica el esquema y luego las migraciones de `logistock/db/migraciones/` en orden (ajuste de stock, salida del reservado al despachar, cotizaciones, SKU automático, descuentos autorizados, ajustes por aprobar, peso de productos y avisos):
 
    ```bash
-   psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f logistock/db/migraciones/001_funcionalidades_completas.sql -f logistock/db/migraciones/002_sku_automatico.sql -f logistock/db/migraciones/003_reglas_pendientes_rup.sql -f logistock/db/grants_local.sql
+   psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f logistock/db/migraciones/001_funcionalidades_completas.sql -f logistock/db/migraciones/002_sku_automatico.sql -f logistock/db/migraciones/003_reglas_pendientes_rup.sql -f logistock/db/migraciones/004_direccion_proveedor.sql -f logistock/db/grants_local.sql
    ```
 
    Copia `logistock/backend/.env.example` a `logistock/backend/.env` y completa `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` con lo que devuelva `supabase status` (no subas ese archivo a git).

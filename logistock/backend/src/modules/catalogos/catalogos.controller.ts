@@ -51,6 +51,10 @@ export class ProveedorNuevoDto {
   @IsOptional() @IsString() nit?: string;
   @IsOptional() @IsString() telefono?: string;
   @IsOptional() @IsEmail() correo?: string;
+  /** Opcional: dirección y punto en el mapa del proveedor. */
+  @IsOptional() @IsString() direccion?: string;
+  @IsOptional() @IsNumber() @Min(-90) @Max(90) latitud?: number;
+  @IsOptional() @IsNumber() @Min(-180) @Max(180) longitud?: number;
 }
 
 export class VehiculoNuevoDto {

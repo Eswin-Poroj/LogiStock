@@ -6,7 +6,9 @@ import { useSesion } from '../auth/sesion'
 import { BuscadorTabla, Paginador } from '../comun/Paginador'
 import { eliminarConConfirmacion, useTablaPaginada } from '../comun/paginar'
 import { quetzales } from '../dominio/quetzales'
-import type { CotizacionResumen } from '../dominio/tipos'
+import type { Cotizacion, CotizacionResumen } from '../dominio/tipos'
+import { descargarPdfCotizacion } from './pdfCotizacion'
+import { useConfiguracion } from '../comun/useConfiguracion'
 import { Encabezado } from '../navegacion/Encabezado'
 import { MenuPedidos } from './MenuPedidos'
 
@@ -15,6 +17,22 @@ export function ListaCotizaciones() {
   const [cotizaciones, setCotizaciones] = useState<CotizacionResumen[]>([])
   const [error, setError] = useState<ApiError | null>(null)
   const tabla = useTablaPaginada(cotizaciones, (c) => `${c.numero} ${c.cliente}`)
+  const config = useConfiguracion(token)
+  const [generando, setGenerando] = useState<string | null>(null)
+
+  async function pdf(c: CotizacionResumen) {
+    if (!token) return
+    setError(null)
+    setGenerando(c.id)
+    try {
+      await descargarPdfCotizacion(await api<Cotizacion>(`/cotizaciones/${c.id}`, { token }), config.iva_pct)
+    } catch (fallo) {
+      if (fallo instanceof ApiError) setError(fallo)
+      else throw fallo
+    } finally {
+      setGenerando(null)
+    }
+  }
 
   useEffect(() => {
     if (!token) return
@@ -60,6 +78,7 @@ export function ListaCotizaciones() {
                       {c.pedido_id
                         ? <Link to={`/pedidos/${c.pedido_id}`}>Ver pedido</Link>
                         : <Link to={`/pedidos?cotizacion=${c.id}`} aria-label={`Abrir ${c.numero}`}>Abrir</Link>}
+                      <button type="button" aria-label={`PDF de ${c.numero}`} disabled={generando === c.id} onClick={() => void pdf(c)}>{generando === c.id ? 'Generando…' : 'PDF'}</button>
                       <button type="button" className="boton-peligro" aria-label={`Eliminar ${c.numero}`} onClick={() => void eliminar(c)}>Eliminar</button>
                     </td>
                   </tr>

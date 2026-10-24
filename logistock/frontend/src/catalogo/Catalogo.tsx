@@ -8,6 +8,7 @@ import { quetzales } from '../dominio/quetzales'
 import type { Bodega, Cliente, Producto, Proveedor } from '../dominio/tipos'
 import { Encabezado } from '../navegacion/Encabezado'
 import { FormularioCliente } from './FormularioCliente'
+import { SelectorUbicacion } from './SelectorUbicacion'
 import { BuscadorTabla, Paginador } from '../comun/Paginador'
 import { eliminarConConfirmacion, useTablaPaginada } from '../comun/paginar'
 import { Conductores, Vehiculos } from './Flota'
@@ -245,6 +246,9 @@ function Proveedores() {
   const [nit, setNit] = useState('')
   const [telefono, setTelefono] = useState('')
   const [correo, setCorreo] = useState('')
+  const [direccion, setDireccion] = useState('')
+  const [punto, setPunto] = useState<{ latitud: number; longitud: number } | null>(null)
+  const [conUbicacion, setConUbicacion] = useState(false)
 
   useEffect(() => {
     if (!token) return
@@ -255,7 +259,7 @@ function Proveedores() {
     return () => { vivo = false }
   }, [token])
 
-  const tabla = useTablaPaginada(proveedores, (p) => `${p.nombre} ${p.nit ?? ''} ${p.correo ?? ''}`)
+  const tabla = useTablaPaginada(proveedores, (p) => `${p.nombre} ${p.nit ?? ''} ${p.correo ?? ''} ${p.direccion ?? ''}`)
 
   async function eliminar(proveedor: Proveedor) {
     setError(null)
@@ -272,10 +276,15 @@ function Proveedores() {
     if (nit.trim()) body.nit = nit.trim()
     if (telefono.trim()) body.telefono = telefono.trim()
     if (correo.trim()) body.correo = correo.trim()
+    if (direccion.trim()) body.direccion = direccion.trim()
+    const cuerpo: Record<string, unknown> = { ...body }
+    if (punto) { cuerpo.latitud = punto.latitud; cuerpo.longitud = punto.longitud }
     try {
-      const creado = await api<Proveedor>('/proveedores', { method: 'POST', token, body })
+      const creado = await api<Proveedor>('/proveedores', { method: 'POST', token, body: cuerpo })
       setProveedores((actuales) => [...actuales, creado].sort((a, b) => a.nombre.localeCompare(b.nombre)))
-      for (const limpiar of [setNombre, setNit, setTelefono, setCorreo]) limpiar('')
+      for (const limpiar of [setNombre, setNit, setTelefono, setCorreo, setDireccion]) limpiar('')
+      setPunto(null)
+      setConUbicacion(false)
     } catch (fallo) {
       if (fallo instanceof ApiError) setError(fallo)
     }
@@ -291,6 +300,20 @@ function Proveedores() {
           <label>NIT<input value={nit} onChange={(e) => setNit(e.target.value)} /></label>
           <label>Teléfono<input value={telefono} onChange={(e) => setTelefono(e.target.value)} /></label>
           <label>Correo<input type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} /></label>
+          <button type="button" className="enlace-accion" aria-expanded={conUbicacion} onClick={() => setConUbicacion((v) => !v)}>
+            {conUbicacion ? 'Quitar ubicación en el mapa' : 'Agregar ubicación en el mapa (opcional)'}
+          </button>
+          {conUbicacion && (
+            <SelectorUbicacion
+              latitud={punto?.latitud ?? null}
+              longitud={punto?.longitud ?? null}
+              onCambio={(lugar) => {
+                setPunto({ latitud: lugar.latitud, longitud: lugar.longitud })
+                if (lugar.direccion) setDireccion([lugar.direccion, lugar.municipio].filter(Boolean).join(', '))
+              }}
+            />
+          )}
+          <label>Dirección (opcional)<input value={direccion} onChange={(e) => setDireccion(e.target.value)} /></label>
           <button type="submit" className="boton-primario" disabled={!nombre.trim()}>Guardar proveedor</button>
         </form>
       </section>
@@ -301,11 +324,12 @@ function Proveedores() {
         </div>
         <div className="tabla-contenedor">
           <table>
-            <thead><tr><th>Nombre</th><th>NIT</th><th>Teléfono</th><th>Correo</th><th /></tr></thead>
+            <thead><tr><th>Nombre</th><th>NIT</th><th>Teléfono</th><th>Correo</th><th>Dirección</th><th /></tr></thead>
             <tbody>
               {tabla.visibles.map((p) => (
                 <tr key={p.id}>
                   <td>{p.nombre}</td><td>{p.nit ?? '—'}</td><td>{p.telefono ?? '—'}</td><td>{p.correo ?? '—'}</td>
+                  <td>{p.direccion ?? '—'}</td>
                   <td><button type="button" className="boton-peligro" aria-label={`Eliminar ${p.nombre}`} onClick={() => void eliminar(p)}>Eliminar</button></td>
                 </tr>
               ))}

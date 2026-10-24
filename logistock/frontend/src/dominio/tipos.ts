@@ -65,6 +65,9 @@ export interface Proveedor {
   nit?: string | null
   telefono?: string | null
   correo?: string | null
+  direccion?: string | null
+  latitud?: number | null
+  longitud?: number | null
 }
 
 export interface Bodega {
@@ -329,6 +332,10 @@ export interface CotizacionResumen {
 export interface Cotizacion extends CotizacionResumen {
   cliente_id: string
   bodega_id: string
+  cliente_nit?: string
+  cliente_direccion?: string
+  bodega?: string
+  asesor?: string
   subtotal: number
   iva: number
   lineas: { producto_id: string; sku: string; nombre: string; cantidad: number; precio_unitario: number; subtotal: number }[]

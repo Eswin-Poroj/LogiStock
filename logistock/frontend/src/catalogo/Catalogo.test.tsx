@@ -82,6 +82,31 @@ describe('catálogo', () => {
     expect(await within(screen.getByRole('region', { name: 'Proveedores' })).findByText('Cementos Progreso')).toBeInTheDocument()
   })
 
+  it('el proveedor guarda dirección y ubicación solo si se agregan', async () => {
+    const user = userEvent.setup()
+    const red = instalarFetch((url, init) => {
+      if (url.includes('nominatim.openstreetmap.org/search')) {
+        return { status: 200, body: [{ display_name: 'Zona 3, Quetzaltenango', lat: '14.84', lon: '-91.52', address: { suburb: 'Zona 3', city: 'Quetzaltenango' } }] }
+      }
+      if (url.endsWith('/proveedores') && init?.method === 'POST') return { status: 201, body: { id: PROVEEDOR_ID, nombre: 'Aceros del Sur', direccion: 'Zona 3, Quetzaltenango' } }
+      return { status: 200, body: [] }
+    })
+    redes.push(red)
+    renderConSesion(<App />, 'administrador', '/catalogo')
+    await user.click(screen.getByRole('button', { name: 'Proveedores' }))
+    const form = screen.getByRole('region', { name: 'Nuevo proveedor' })
+    expect(within(form).queryByLabelText('Buscar dirección')).not.toBeInTheDocument()
+    await user.type(within(form).getByLabelText('Nombre'), 'Aceros del Sur')
+    await user.click(within(form).getByRole('button', { name: 'Agregar ubicación en el mapa (opcional)' }))
+    await user.type(within(form).getByLabelText('Buscar dirección'), 'zona 3 xela')
+    await user.click(within(form).getByRole('button', { name: 'Buscar' }))
+    await user.click(await within(form).findByRole('button', { name: 'Zona 3, Quetzaltenango' }))
+    await user.click(within(form).getByRole('button', { name: 'Guardar proveedor' }))
+    expect(await within(screen.getByRole('region', { name: 'Proveedores' })).findByText('Zona 3, Quetzaltenango')).toBeInTheDocument()
+    const post = red.llamadas.find((l) => l.init?.method === 'POST')
+    expect(JSON.parse(String(post?.init?.body))).toEqual({ nombre: 'Aceros del Sur', direccion: 'Zona 3, Quetzaltenango', latitud: 14.84, longitud: -91.52 })
+  })
+
   it('registra un vehículo y lo desactiva', async () => {
     const user = userEvent.setup()
     const VEH = 'aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa'

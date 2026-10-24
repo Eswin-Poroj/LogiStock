@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MenuPedidos } from './MenuPedidos'
+import { descargarPdfCotizacion } from './pdfCotizacion'
 import { useConfiguracion } from '../comun/useConfiguracion'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
@@ -45,6 +46,7 @@ export function FormularioPedido() {
   const [sustitutos, setSustitutos] = useState<Sustituto[] | null>(null)
   const [cotizaciones, setCotizaciones] = useState<CotizacionResumen[]>([])
   const [cotizacionId, setCotizacionId] = useState<string | null>(null)
+  const [cotizacionGuardada, setCotizacionGuardada] = useState<Cotizacion | null>(null)
   const bodegas = useListado<Bodega>('/bodegas', token)
   const catalogo = useListado<Producto>('/productos?limite=500', token)
   const [filtroCatalogo, setFiltroCatalogo] = useState('')
@@ -231,6 +233,7 @@ export function FormularioPedido() {
         body: { cliente_id: clienteId, bodega_id: bodegaId, lineas: lineas.map((l) => ({ producto_id: l.producto_id, cantidad: l.cantidad })) },
       })
       setCotizacionId(guardada.id)
+      setCotizacionGuardada(guardada)
       setCotizaciones((actuales) => [{ id: guardada.id, numero: guardada.numero, cliente: guardada.cliente, total: guardada.total, created_at: guardada.created_at, pedido_id: null }, ...actuales.filter((c) => c.id !== guardada.id)])
       setAvisoCotizacion(`Cotización ${guardada.numero} guardada por ${quetzales(guardada.total)}. No reserva stock hasta confirmar el pedido.`)
     } catch (fallo) {
@@ -246,6 +249,7 @@ export function FormularioPedido() {
       setClienteId(c.cliente_id)
       setBodegaId(c.bodega_id)
       setCotizacionId(c.id)
+      setCotizacionGuardada(c)
       setLineas(c.lineas.map((l) => ({
         producto_id: l.producto_id, sku: l.sku, nombre: l.nombre, cantidad: l.cantidad,
         disponible: existencias.find((fila) => fila.producto_id === l.producto_id)?.disponible ?? null,
@@ -269,6 +273,7 @@ export function FormularioPedido() {
     setSustitutosDe(null)
     setSustitutos(null)
     setCotizacionId(null)
+    setCotizacionGuardada(null)
     setDescuentoTexto('0')
     setSupervisorCorreo('')
     setSupervisorClave('')
@@ -490,6 +495,9 @@ export function FormularioPedido() {
               <button type="button" className="boton-primario" disabled={!valido} onClick={() => void confirmar()}>Confirmar pedido</button>
               <button type="button" disabled={!esUuid(clienteId) || !esUuid(bodegaId) || lineas.length === 0} onClick={() => void guardarCotizacion()}>Guardar como cotización</button>
               {avisoCotizacion && <p role="status">{avisoCotizacion}</p>}
+              {cotizacionGuardada && (
+                <button type="button" onClick={() => void descargarPdfCotizacion(cotizacionGuardada, config.iva_pct)}>Descargar PDF de {cotizacionGuardada.numero}</button>
+              )}
               <p className="nota-resumen">Las líneas sin stock no se incluyen en el total ni se reservan.</p>
             </aside>
             <section className="tarjeta-info pedido-pasos">

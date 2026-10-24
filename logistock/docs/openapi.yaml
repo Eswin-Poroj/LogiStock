@@ -266,6 +266,9 @@ paths:
                 nit: { type: string }
                 telefono: { type: string }
                 correo: { type: string, format: email }
+                direccion: { type: string, description: Opcional }
+                latitud: { type: number, minimum: -90, maximum: 90, description: Opcional }
+                longitud: { type: number, minimum: -180, maximum: 180, description: Opcional }
       responses:
         '201': { description: Proveedor creado }
         '409': { $ref: '#/components/responses/Conflicto' }
