@@ -46,7 +46,7 @@ describe('PA inventario', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/inventario/ajustes')
       .set('Authorization', `Bearer ${semilla.operario.token}`)
-      .send({ producto_id: productoId, bodega_id: semilla.bodegaId, tipo: 'ajuste', cantidad: -500 });
+      .send({ producto_id: productoId, bodega_id: semilla.bodegaId, tipo: 'ajuste', cantidad: -500, motivo: 'Conteo físico' });
     expect(res.status).toBe(409);
     expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 312, reservado: 0, danado: 0 });
   });
@@ -56,20 +56,31 @@ describe('PA inventario', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/inventario/ajustes')
       .set('Authorization', `Bearer ${semilla.operario.token}`)
-      .send({ producto_id: productoId, bodega_id: semilla.bodegaId, tipo: 'danio', cantidad: 2 });
+      .send({ producto_id: productoId, bodega_id: semilla.bodegaId, tipo: 'danio', cantidad: 2, motivo: 'Caja rota' });
     expect(res.status).toBe(201);
     expect(res.body.tipo).toBe('danio');
     expect(res.body.cantidad).toBe(-2);
     expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 8, danado: 2 });
   });
 
-  it('un ajuste positivo sigue en 501', async () => {
+  it('PA-16b ajuste positivo suma al disponible y deja el movimiento con motivo', async () => {
     const productoId = await crearProducto(admin, `PA16P-${Date.now()}`, 10, semilla.bodegaId, 312);
     const res = await request(app.getHttpServer())
       .post('/api/v1/inventario/ajustes')
       .set('Authorization', `Bearer ${semilla.operario.token}`)
+      .send({ producto_id: productoId, bodega_id: semilla.bodegaId, tipo: 'ajuste', cantidad: 4, motivo: 'Conteo físico' });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ tipo: 'ajuste', cantidad: 4, referencia: 'Conteo físico' });
+    expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 316, reservado: 0, danado: 0 });
+  });
+
+  it('PA-16c ajuste sin motivo responde 400', async () => {
+    const productoId = await crearProducto(admin, `PA16M-${Date.now()}`, 10, semilla.bodegaId, 5);
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/inventario/ajustes')
+      .set('Authorization', `Bearer ${semilla.operario.token}`)
       .send({ producto_id: productoId, bodega_id: semilla.bodegaId, tipo: 'ajuste', cantidad: 1 });
-    expect(res.status).toBe(501);
-    expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 312, reservado: 0, danado: 0 });
+    expect(res.status).toBe(400);
+    expect(await leerStock(admin, productoId, semilla.bodegaId)).toMatchObject({ disponible: 5 });
   });
 });

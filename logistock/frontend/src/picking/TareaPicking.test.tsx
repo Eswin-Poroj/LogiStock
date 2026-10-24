@@ -50,6 +50,29 @@ describe('tarea de picking', () => {
     expect(JSON.parse(String(cierre?.init?.body))).toEqual({ faltante: false })
   })
 
+  it('Recoger llena el SKU y lo que falta; un SKU ajeno avisa antes de enviar', async () => {
+    const user = userEvent.setup()
+    const red = instalarFetch((url, init) => {
+      if (url.endsWith('/escaneos')) return { status: 200, body: tarea({ lineas: [{ ...linea, cantidad_recogida: 2 }] }) }
+      if (!init?.method || init.method === 'GET') return { status: 200, body: tarea({ lineas: [{ ...linea, ubicacion: 'A-03-2' }] }) }
+      return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
+    })
+    redes.push(red)
+    renderConSesion(<App />, 'operario_bodega', `/picking/tarea?id=${TAREA_ID}`)
+    expect(await screen.findByText('faltan 1')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('SKU'), 'pin-0001')
+    expect(screen.getByText('El SKU PIN-0001 no está en esta tarea.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Recoger FER-0012' }))
+    expect(screen.getByLabelText('SKU')).toHaveValue('FER-0012')
+    expect(screen.getByLabelText('Cantidad')).toHaveValue(1)
+    expect(screen.getByText('Cemento gris 42.5 kg en A-03-2: faltan 1.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Confirmar escaneo' }))
+    expect(await screen.findByText('2 / 2')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Recoger FER-0012' })).not.toBeInTheDocument()
+    const escaneo = red.llamadas.find((llamada) => llamada.url.endsWith('/escaneos'))
+    expect(JSON.parse(String(escaneo?.init?.body))).toEqual({ sku: 'FER-0012', cantidad: 1 })
+  })
+
   it('muestra el 409 del SKU ajeno y no cambia lo recogido', async () => {
     const user = userEvent.setup()
     redes.push(instalarFetch((url, init) => {
@@ -78,19 +101,35 @@ describe('tarea de picking', () => {
     expect(JSON.parse(String(cierre?.init?.body))).toEqual({ faltante: true })
   })
 
-  it('sin id pide la tarea y la abre al escribir el id', async () => {
+  it('sin id elige el pedido de una lista de tareas abiertas', async () => {
     const user = userEvent.setup()
     const red = instalarFetch((url, init) => {
+      if (url.endsWith('/picking/tareas')) {
+        return { status: 200, body: [
+          tarea({ numero_pedido: 'PED-000007', cliente: 'Cliente Pruebas' }),
+          tarea({ id: 'cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd', estado: 'completado', numero_pedido: 'PED-000006', cliente: 'Ya lista' }),
+        ] }
+      }
       if (url.endsWith(`/picking/tareas/${TAREA_ID}`) && (!init?.method || init.method === 'GET')) return { status: 200, body: tarea() }
       return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
     })
     redes.push(red)
     renderConSesion(<App />, 'operario_bodega', '/picking/tarea')
-    expect(screen.getByText('Elige una tarea en el tablero.')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Tarea'), { target: { value: TAREA_ID } })
-    await user.click(screen.getByRole('button', { name: 'Abrir' }))
+    expect(screen.queryByRole('textbox', { name: 'Tarea' })).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Tarea'), await screen.findByRole('option', { name: 'PED-000007 · Cliente Pruebas' }))
+    expect(screen.queryByRole('option', { name: 'PED-000006 · Ya lista' })).not.toBeInTheDocument()
     expect(await screen.findByText('En curso')).toBeInTheDocument()
     expect(screen.queryByLabelText('Tarea')).not.toBeInTheDocument()
+  })
+
+  it('con un id que no es de tarea no ofrece acciones ni llama a completar', async () => {
+    const red = instalarFetch(() => ({ status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }))
+    redes.push(red)
+    renderConSesion(<App />, 'operario_bodega', '/picking/tarea?id=PED-000007')
+    expect(screen.getByRole('alert')).toHaveTextContent('Esa tarea no existe')
+    expect(screen.queryByRole('button', { name: 'Marcar como listo para despacho' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reportar faltante' })).not.toBeInTheDocument()
+    expect(red.llamadas.some((llamada) => llamada.url.includes('/completar'))).toBe(false)
   })
 
   it('el despachador ve la línea y no los botones de escritura', async () => {

@@ -9,7 +9,7 @@ import { Inicio } from './Inicio'
 import { Shell } from './Shell'
 
 const VISIBLES: Record<Rol, string[]> = {
-  administrador: ['Pedidos', 'Inventario', 'Picking', 'Despacho', 'Reportes'],
+  administrador: ['Pedidos', 'Inventario', 'Picking', 'Despacho', 'Reportes', 'Catálogo'],
   asesor_ventas: ['Pedidos', 'Inventario'],
   operario_bodega: ['Inventario', 'Picking'],
   despachador: ['Picking', 'Despacho'],

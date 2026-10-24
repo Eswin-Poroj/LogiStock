@@ -105,13 +105,22 @@ describe('login', () => {
     expect(await screen.findByRole('heading', { name: 'Nuevo pedido de venta' })).toBeInTheDocument()
   })
 
-  it('explica que no hay recuperación de contraseña y no llama a la API', async () => {
+  it('pide el enlace de recuperación con el correo escrito', async () => {
     const user = userEvent.setup()
-    const red = instalarFetch(() => ({ status: 500, body: { statusCode: 500, message: 'no', error: 'Error' } }))
+    const red = instalarFetch((url, init) => {
+      if (url.endsWith('/auth/recuperar') && init?.method === 'POST') {
+        return { status: 202, body: { mensaje: 'Si el correo está registrado, te enviamos un enlace para restablecer la contraseña.' } }
+      }
+      return { status: 500, body: { statusCode: 500, message: 'no', error: 'Error' } }
+    })
     redes.push(red)
     renderLogin()
     await user.click(screen.getByRole('button', { name: '¿Olvidaste tu contraseña?' }))
-    expect(screen.getByRole('status')).toHaveTextContent('La recuperación de contraseña no está en la API. Pide el restablecimiento al administrador.')
-    expect(red.llamadas).toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Enviar enlace' })).toBeDisabled()
+    await user.type(screen.getByLabelText('Correo electrónico'), 'ada@ejemplo.com')
+    await user.click(screen.getByRole('button', { name: 'Enviar enlace' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Si el correo está registrado, te enviamos un enlace')
+    expect(JSON.parse(String(red.llamadas[0].init?.body))).toEqual({ correo: 'ada@ejemplo.com' })
+    expect(sessionStorage.getItem(CLAVE_TOKEN)).toBeNull()
   })
 })

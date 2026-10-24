@@ -5,7 +5,8 @@ import { ApiError, api } from '../api/cliente'
 import { useListado } from '../api/useListado'
 import { useSesion } from '../auth/sesion'
 import { quetzales } from '../dominio/quetzales'
-import type { Bodega, Cliente, InventarioRespuesta, Pedido, PedidoNuevo, Producto } from '../dominio/tipos'
+import type { Bodega, Cliente, Cotizacion, CotizacionResumen, InventarioRespuesta, Pedido, PedidoNuevo, Producto, Sustituto } from '../dominio/tipos'
+import { FormularioCliente } from '../catalogo/FormularioCliente'
 import { esUuid } from '../dominio/uuid'
 import { Encabezado } from '../navegacion/Encabezado'
 import {
@@ -29,8 +30,15 @@ function avisoStock409(error: ApiError): string {
 export function FormularioPedido() {
   const { token } = useSesion()
   const navigate = useNavigate()
-  const clientes = useListado<Cliente>('/clientes', token)
+  const clientes = useListado<Cliente>('/clientes?limite=500', token)
+  const [clientesNuevos, setClientesNuevos] = useState<Cliente[]>([])
+  const [altaCliente, setAltaCliente] = useState(false)
+  const [sustitutos, setSustitutos] = useState<Sustituto[] | null>(null)
+  const [cotizaciones, setCotizaciones] = useState<CotizacionResumen[]>([])
+  const [cotizacionId, setCotizacionId] = useState<string | null>(null)
   const bodegas = useListado<Bodega>('/bodegas', token)
+  const catalogo = useListado<Producto>('/productos?limite=500', token)
+  const [filtroCatalogo, setFiltroCatalogo] = useState('')
   const [clienteId, setClienteId] = useState('')
   const [bodegaId, setBodegaId] = useState('')
   const [busqueda, setBusqueda] = useState('')
@@ -63,11 +71,21 @@ export function FormularioPedido() {
     }))
   }, [existencias])
 
-  const cliente = clientes.items.find((fila) => fila.id === clienteId)
+  useEffect(() => {
+    if (!token) return
+    let vivo = true
+    api<CotizacionResumen[]>('/cotizaciones', { token })
+      .then((filas) => { if (vivo) setCotizaciones(filas.filter((fila) => !fila.pedido_id)) })
+      .catch(() => { /* sin cotizaciones guardadas: el selector queda vacío */ })
+    return () => { vivo = false }
+  }, [token])
+
+  const listaClientes = [...clientesNuevos, ...clientes.items.filter((fila) => !clientesNuevos.some((nuevo) => nuevo.id === fila.id))]
+  const cliente = listaClientes.find((fila) => fila.id === clienteId)
   const bodega = bodegas.items.find((fila) => fila.id === bodegaId)
   const resumen = resumenPedido(lineas)
   const valido = pedidoValido({ cliente_id: clienteId, bodega_id: bodegaId, lineas })
-  const errorLista = clientes.error ?? bodegas.error
+  const errorLista = clientes.error ?? bodegas.error ?? catalogo.error
   const errorConfirmacion = errorLista ? null : error
   const stock409 = errorConfirmacion?.status === 409 && (errorConfirmacion.lineasSinStock?.length ?? 0) > 0
 
@@ -89,7 +107,22 @@ export function FormularioPedido() {
         return
       }
       const producto = encontrados.length === 1 ? encontrados[0] : encontrados.find((fila) => fila.id === productoElegido)!
+      await agregarProducto(producto)
+      setCoincidencias([])
+      setProductoElegido('')
+      setBusqueda('')
+    } catch (fallo) {
+      if (fallo instanceof ApiError) setError(fallo)
+    }
+  }
+
+  /** Suma una unidad del producto; el disponible se relee de la API para no cotizar con datos viejos. */
+  async function agregarProducto(producto: Producto) {
+    if (!token || !esUuid(bodegaId)) return
+    setError(null)
+    try {
       const inventario = await api<InventarioRespuesta>(`/inventario?bodega_id=${bodegaId}`, { token })
+      setExistencias(inventario.items)
       const item = inventario.items.find((fila) => fila.producto_id === producto.id)
       const disponible = item ? item.disponible : 0
       setLineas((actuales) => {
@@ -110,9 +143,6 @@ export function FormularioPedido() {
         }
         return [...actuales, nueva]
       })
-      setCoincidencias([])
-      setProductoElegido('')
-      setBusqueda('')
     } catch (fallo) {
       if (fallo instanceof ApiError) setError(fallo)
     }
@@ -133,9 +163,72 @@ export function FormularioPedido() {
       politica_faltantes: politicaDelFormulario(lineas),
       lineas: lineas.map((linea) => ({ producto_id: linea.producto_id, cantidad: linea.cantidad })),
     }
+    if (cotizacionId) body.cotizacion_id = cotizacionId
     try {
       const creado = await api<Pedido>('/pedidos', { method: 'POST', token, body })
       navigate(`/pedidos/${creado.id}`)
+    } catch (fallo) {
+      if (fallo instanceof ApiError) setError(fallo)
+    }
+  }
+
+  /** CU-01 E1: sustitutos de la misma categoría con stock suficiente en la bodega. */
+  async function verSustitutos(linea: LineaCotizacion) {
+    if (!token || !esUuid(bodegaId)) return
+    setSustitutosDe(linea.producto_id)
+    setSustitutos(null)
+    try {
+      setSustitutos(await api<Sustituto[]>(`/productos/${linea.producto_id}/sustitutos?bodega_id=${bodegaId}&cantidad=${linea.cantidad}`, { token }))
+    } catch (fallo) {
+      if (fallo instanceof ApiError) setError(fallo)
+    }
+  }
+
+  function usarSustituto(original: string, sustituto: Sustituto) {
+    setLineas((actuales) => {
+      const cantidad = actuales.find((fila) => fila.producto_id === original)?.cantidad ?? 1
+      const sinOriginal = actuales.filter((fila) => fila.producto_id !== original && fila.producto_id !== sustituto.producto_id)
+      return [...sinOriginal, {
+        producto_id: sustituto.producto_id, sku: sustituto.sku, nombre: sustituto.nombre, cantidad,
+        disponible: sustituto.disponible, precio_unitario: sustituto.precio_unitario, resolucion: 'pendiente',
+      }]
+    })
+    setSustitutosDe(null)
+    setSustitutos(null)
+  }
+
+  async function guardarCotizacion() {
+    if (!token || !esUuid(clienteId) || !esUuid(bodegaId) || lineas.length === 0) return
+    setError(null)
+    setAvisoCotizacion(null)
+    try {
+      const guardada = await api<Cotizacion>('/cotizaciones', {
+        method: 'POST',
+        token,
+        body: { cliente_id: clienteId, bodega_id: bodegaId, lineas: lineas.map((l) => ({ producto_id: l.producto_id, cantidad: l.cantidad })) },
+      })
+      setCotizacionId(guardada.id)
+      setCotizaciones((actuales) => [{ id: guardada.id, numero: guardada.numero, cliente: guardada.cliente, total: guardada.total, created_at: guardada.created_at, pedido_id: null }, ...actuales.filter((c) => c.id !== guardada.id)])
+      setAvisoCotizacion(`Cotización ${guardada.numero} guardada por ${quetzales(guardada.total)}. No reserva stock hasta confirmar el pedido.`)
+    } catch (fallo) {
+      if (fallo instanceof ApiError) setError(fallo)
+    }
+  }
+
+  async function abrirCotizacion(id: string) {
+    if (!token || !id) return
+    setError(null)
+    try {
+      const c = await api<Cotizacion>(`/cotizaciones/${id}`, { token })
+      setClienteId(c.cliente_id)
+      setBodegaId(c.bodega_id)
+      setCotizacionId(c.id)
+      setLineas(c.lineas.map((l) => ({
+        producto_id: l.producto_id, sku: l.sku, nombre: l.nombre, cantidad: l.cantidad,
+        disponible: existencias.find((fila) => fila.producto_id === l.producto_id)?.disponible ?? null,
+        precio_unitario: l.precio_unitario, resolucion: 'pendiente',
+      })))
+      setAvisoCotizacion(`Cotización ${c.numero} cargada. Confirma el pedido para reservar el stock.`)
     } catch (fallo) {
       if (fallo instanceof ApiError) setError(fallo)
     }
@@ -151,11 +244,19 @@ export function FormularioPedido() {
     setAvisoCotizacion(null)
     setError(null)
     setSustitutosDe(null)
+    setSustitutos(null)
+    setCotizacionId(null)
   }
 
   return (
     <section className="panel panel-pedido">
       <Encabezado titulo="Nuevo pedido de venta">
+        {cotizaciones.length > 0 && (
+          <select aria-label="Abrir cotización" value="" onChange={(evento) => void abrirCotizacion(evento.target.value)}>
+            <option value="">Abrir cotización…</option>
+            {cotizaciones.map((c) => <option key={c.id} value={c.id}>{c.numero} · {c.cliente} · {quetzales(c.total)}</option>)}
+          </select>
+        )}
         <button type="button" onClick={cancelarBorrador}>Cancelar</button>
       </Encabezado>
       {errorLista && <AvisoApi error={errorLista} />}
@@ -173,7 +274,7 @@ export function FormularioPedido() {
                   Cliente
                   <select value={clienteId} onChange={(evento) => setClienteId(evento.target.value)}>
                     <option value="">Selecciona</option>
-                    {clientes.items.map((fila) => <option key={fila.id} value={fila.id}>{fila.nombre}</option>)}
+                    {listaClientes.map((fila) => <option key={fila.id} value={fila.id}>{fila.nombre}</option>)}
                   </select>
                 </label>
                 <label>
@@ -188,6 +289,16 @@ export function FormularioPedido() {
                   </select>
                 </label>
               </div>
+              <button type="button" className="enlace-accion" aria-expanded={altaCliente} onClick={() => setAltaCliente((abierto) => !abierto)}>
+                {altaCliente ? 'Cerrar alta de cliente' : '¿El cliente no existe? Registrarlo'}
+              </button>
+              {altaCliente && (
+                <FormularioCliente onCreado={(nuevo) => {
+                  setClientesNuevos((actuales) => [nuevo, ...actuales])
+                  setClienteId(nuevo.id)
+                  setAltaCliente(false)
+                }} />
+              )}
             </section>
             <section className="tarjeta" aria-labelledby="titulo-lineas">
               <div className="tarjeta-titulo">
@@ -250,7 +361,7 @@ export function FormularioPedido() {
                     >
                       Ajustar a {linea.disponible}
                     </button>
-                    <button type="button" onClick={() => setSustitutosDe(linea.producto_id)}>Ver sustitutos</button>
+                    <button type="button" onClick={() => void verSustitutos(linea)}>Ver sustitutos</button>
                     <button
                       type="button"
                       aria-pressed={linea.resolucion === 'backorder'}
@@ -259,10 +370,17 @@ export function FormularioPedido() {
                       Dejar como backorder
                     </button>
                   </div>
-                  {sustitutosDe === linea.producto_id && (
+                  {sustitutosDe === linea.producto_id && sustitutos && (
                     <>
-                      <p>La API no tiene sustitutos. No se muestra ningún producto de reemplazo.</p>
-                      <ul data-testid={`sustitutos-${linea.producto_id}`} />
+                      {sustitutos.length === 0 && <p>No hay sustitutos de la misma categoría con {linea.cantidad} unidades disponibles.</p>}
+                      <ul className="lista-sustitutos" data-testid={`sustitutos-${linea.producto_id}`}>
+                        {sustitutos.map((s) => (
+                          <li key={s.producto_id}>
+                            <span><strong>{s.sku}</strong> {s.nombre} · disponible {s.disponible} · {quetzales(s.precio_unitario)}</span>
+                            <button type="button" onClick={() => usarSustituto(linea.producto_id, s)}>Usar {s.sku}</button>
+                          </li>
+                        ))}
+                      </ul>
                     </>
                   )}
                 </div>
@@ -285,6 +403,42 @@ export function FormularioPedido() {
               )}
               {avisoBusqueda && <p role="status">{avisoBusqueda}</p>}
             </section>
+            <section className="tarjeta" aria-label="Productos disponibles">
+              <div className="tarjeta-titulo">
+                <h2>Productos</h2>
+                <input aria-label="Filtrar productos" placeholder="Filtrar por SKU o nombre" value={filtroCatalogo} onChange={(evento) => setFiltroCatalogo(evento.target.value)} />
+              </div>
+              {catalogo.items.length === 0 && !catalogo.error && <p className="nota">Aún no hay productos en el catálogo.</p>}
+              {!bodega && catalogo.items.length > 0 && <p className="nota">Elige la bodega de despacho para ver el disponible y agregar productos.</p>}
+              {catalogo.items.length > 0 && (
+                <div className="tabla-contenedor tabla-catalogo-pedido">
+                  <table>
+                    <thead><tr><th>SKU</th><th>Producto</th><th className="num">Disponible</th><th className="num">Precio</th><th /></tr></thead>
+                    <tbody>
+                      {catalogo.items
+                        .filter((producto) => `${producto.sku} ${producto.nombre}`.toLowerCase().includes(filtroCatalogo.trim().toLowerCase()))
+                        .map((producto) => {
+                          const disponible = existencias.find((fila) => fila.producto_id === producto.id)?.disponible ?? 0
+                          const enPedido = lineas.some((linea) => linea.producto_id === producto.id)
+                          return (
+                            <tr key={producto.id} className={enPedido ? 'fila-activa' : undefined}>
+                              <td className="sku">{producto.sku}</td>
+                              <td>{producto.nombre}</td>
+                              <td className="num">{bodega ? disponible : '—'}</td>
+                              <td className="num">{quetzales(Number(producto.precio_unitario))}</td>
+                              <td>
+                                <button type="button" aria-label={`Agregar ${producto.sku}`} disabled={!bodega} onClick={() => void agregarProducto(producto)}>
+                                  {enPedido ? '+1' : 'Agregar'}
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
           <div className="pedido-lateral">
             <aside className="tarjeta resumen-caja">
@@ -294,7 +448,7 @@ export function FormularioPedido() {
               <p>IVA {IVA_PORCENTAJE} % <span>{quetzales(resumen.iva)}</span></p>
               <p className="resumen-total">Total <span>{quetzales(resumen.total)}</span></p>
               <button type="button" className="boton-primario" disabled={!valido} onClick={() => void confirmar()}>Confirmar pedido</button>
-              <button type="button" onClick={() => setAvisoCotizacion('La API no guarda cotizaciones. Confirma el pedido para reservar el stock.')}>Guardar como cotización</button>
+              <button type="button" disabled={!esUuid(clienteId) || !esUuid(bodegaId) || lineas.length === 0} onClick={() => void guardarCotizacion()}>Guardar como cotización</button>
               {avisoCotizacion && <p role="status">{avisoCotizacion}</p>}
               <p className="nota-resumen">Las líneas sin stock no se incluyen en el total ni se reservan.</p>
             </aside>

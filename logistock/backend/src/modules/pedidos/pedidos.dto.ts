@@ -11,4 +11,6 @@ export class PedidoNuevoDto {
   @IsUUID() bodega_id: string;
   @IsOptional() @IsIn(['rechazar', 'backorder']) politica_faltantes?: 'rechazar' | 'backorder';
   @ValidateNested({ each: true }) @Type(() => LineaNuevaDto) @ArrayMinSize(1) lineas: LineaNuevaDto[];
+  /** Si el pedido nace de una cotización guardada, queda enlazada a él. */
+  @IsOptional() @IsUUID() cotizacion_id?: string;
 }

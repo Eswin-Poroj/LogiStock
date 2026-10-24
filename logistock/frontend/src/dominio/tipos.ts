@@ -55,6 +55,15 @@ export interface Producto {
   precio_unitario: number
   stock_minimo: number
   activo: boolean
+  categoria?: string | null
+}
+
+export interface Proveedor {
+  id: string
+  nombre: string
+  nit?: string | null
+  telefono?: string | null
+  correo?: string | null
 }
 
 export interface Bodega {
@@ -63,6 +72,7 @@ export interface Bodega {
   direccion?: string
   latitud?: number
   longitud?: number
+  activa?: boolean
 }
 
 export interface Vehiculo {
@@ -70,12 +80,14 @@ export interface Vehiculo {
   nombre: string
   placa?: string
   capacidad_kg?: number
+  activo?: boolean
 }
 
 export interface Conductor {
   id: string
   nombre: string
-  telefono?: string
+  telefono?: string | null
+  activo?: boolean
 }
 
 export type EstadoStock = 'normal' | 'stock_bajo' | 'agotado'
@@ -139,6 +151,7 @@ export interface PedidoNuevo {
   bodega_id: string
   politica_faltantes: PoliticaFaltantes
   lineas: { producto_id: string; cantidad: number }[]
+  cotizacion_id?: string
 }
 
 export interface LineaPedido {
@@ -172,6 +185,8 @@ export interface PedidoResumen {
   estado: EstadoPedido
   total: number
   created_at: string
+  lineas?: number
+  despacho?: { codigo: string; vehiculo: string } | null
 }
 
 export interface LineaTareaPicking {
@@ -189,6 +204,8 @@ export interface TareaPicking {
   estado: EstadoPicking
   numero_pedido?: string
   cliente?: string
+  total?: number
+  estado_pedido?: EstadoPedido
   operario?: string | null
   lineas: LineaTareaPicking[]
 }
@@ -239,6 +256,8 @@ export interface DespachoNuevo {
   vehiculo_id: string
   conductor_id: string
   bodega_id: string
+  distancia_km?: number
+  duracion_min?: number
   paradas: { pedido_id: string; orden: number; eta?: string }[]
 }
 
@@ -246,6 +265,9 @@ export interface ParadaDespacho {
   id: string
   orden: number
   pedido_id: string
+  numero_pedido?: string
+  cliente?: string
+  direccion?: string
   eta?: string
   entregada_at?: string
 }
@@ -255,8 +277,36 @@ export interface Despacho {
   codigo: string
   estado: EstadoDespacho
   vehiculo: string
+  placa?: string
   conductor: string
   distancia_km?: number
   duracion_min?: number
+  salida_prevista?: string
+  created_at?: string
   paradas: ParadaDespacho[]
+}
+
+export interface Sustituto {
+  producto_id: string
+  sku: string
+  nombre: string
+  precio_unitario: number
+  disponible: number
+}
+
+export interface CotizacionResumen {
+  id: string
+  numero: string
+  cliente: string
+  total: number
+  created_at: string
+  pedido_id: string | null
+}
+
+export interface Cotizacion extends CotizacionResumen {
+  cliente_id: string
+  bodega_id: string
+  subtotal: number
+  iva: number
+  lineas: { producto_id: string; sku: string; nombre: string; cantidad: number; precio_unitario: number; subtotal: number }[]
 }

@@ -10,6 +10,7 @@ export default () => ({
     osrmUrl: process.env.OSRM_URL ?? 'http://localhost:5000',
     googleKey: process.env.GOOGLE_DIRECTIONS_API_KEY ?? '',
   },
+  frontendUrl: process.env.FRONTEND_URL ?? 'http://127.0.0.1:5173',
   ivaPorcentaje: parseFloat(process.env.IVA_PORCENTAJE ?? '12'),
   lockTtlMs: parseInt(process.env.LOCK_TTL_MS ?? '5000', 10),
 });

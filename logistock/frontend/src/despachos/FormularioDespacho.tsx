@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
 import { useListado } from '../api/useListado'
 import { useSesion } from '../auth/sesion'
-import type { Bodega, Conductor, Despacho, DespachoNuevo, PedidoResumen, Ruta, RutaSolicitud, Vehiculo } from '../dominio/tipos'
+import type { Bodega, Conductor, Despacho, DespachoNuevo, PedidoResumen, Ruta, RutaSolicitud, TareaPicking, Vehiculo } from '../dominio/tipos'
 import { esUuid } from '../dominio/uuid'
 import { MenuDespachos } from './MenuDespachos'
 import { quetzales } from '../dominio/quetzales'
@@ -30,8 +31,16 @@ export function FormularioDespacho() {
   useEffect(() => {
     if (!token) return
     let vivo = true
-    api<PedidoResumen[]>('/pedidos?estado=en_preparacion&limite=20', { token })
-      .then((filas) => { if (vivo) setPedidos(filas) })
+    // CU-06: listos = en preparación y con el picking completado.
+    Promise.all([
+      api<PedidoResumen[]>('/pedidos?estado=en_preparacion&limite=100', { token }),
+      api<TareaPicking[]>('/picking/tareas?estado=completado', { token }),
+    ])
+      .then(([filas, tareas]) => {
+        if (!vivo) return
+        const completados = new Set(tareas.map((tarea) => tarea.pedido_id))
+        setPedidos(filas.filter((fila) => completados.has(fila.id)))
+      })
       .catch((fallo: unknown) => { if (vivo && fallo instanceof ApiError) setError(fallo) })
     return () => { vivo = false }
   }, [token])
@@ -64,8 +73,17 @@ export function FormularioDespacho() {
         })
       : marcados.map((pedidoId, indice) => ({ pedido_id: pedidoId, orden: indice + 1 }))
     const body: DespachoNuevo = { vehiculo_id: vehiculoId, conductor_id: conductorId, bodega_id: bodegaId, paradas }
+    if (ruta) {
+      body.distancia_km = ruta.distancia_km
+      body.duracion_min = ruta.duracion_min
+    }
     try {
-      setDespacho(await api<Despacho>('/despachos', { method: 'POST', token, body }))
+      const creado = await api<Despacho>('/despachos', { method: 'POST', token, body })
+      setDespacho(creado)
+      const asignados = new Set(creado.paradas.map((parada) => parada.pedido_id))
+      setPedidos((actuales) => actuales.filter((pedido) => !asignados.has(pedido.id)))
+      setMarcados([])
+      setRuta(null)
     } catch (fallo) {
       if (fallo instanceof ApiError) setError(fallo)
     }
@@ -81,7 +99,7 @@ export function FormularioDespacho() {
         <div className="despacho-izquierda">
           <section className="tarjeta" aria-labelledby="titulo-listos">
             <h2 id="titulo-listos">Pedidos listos para despacho</h2>
-            {pedidos.length === 0 && <p className="nota">No hay pedidos en preparación.</p>}
+            {pedidos.length === 0 && <p className="nota">No hay pedidos con el picking completado.</p>}
             <div className="lista-marcas">
               {pedidos.map((pedido) => (
                 <label key={pedido.id}>
@@ -155,7 +173,7 @@ export function FormularioDespacho() {
           </div>
           {despacho && <p className="nota-ok">Despacho {despacho.codigo}</p>}
           {despacho && <p>Estado {despacho.estado}</p>}
-          {despacho && <p>Los pedidos de las paradas pasan a Despachado.</p>}
+          {despacho && <p>Los pedidos de las paradas pasan a Despachado. <Link to={`/despachos/seguimiento`}>Ver en seguimiento</Link></p>}
         </div>
       </div>
     </section>

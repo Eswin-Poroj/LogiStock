@@ -7,6 +7,7 @@ export function MenuDespachos() {
       <NavLink to="/despachos/seguimiento">Seguimiento</NavLink>
       <NavLink to="/despachos/iniciar">Iniciar</NavLink>
       <NavLink to="/despachos/entrega">Entrega</NavLink>
+      <NavLink to="/despachos/flota">Flota</NavLink>
     </nav>
   )
 }

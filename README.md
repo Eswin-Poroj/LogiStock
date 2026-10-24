@@ -31,6 +31,12 @@ Contrato HTTP en `logistock/docs/openapi.yaml`. La API expone el prefijo global 
    - API Supabase: `http://127.0.0.1:54321`
    - Base de datos: `postgresql://postgres:postgres@127.0.0.1:54322/postgres`
 
+   Aplica el esquema y luego las migraciones de `logistock/db/migraciones/` en orden (ajuste de stock, salida del reservado al despachar, cotizaciones y SKU automático):
+
+   ```bash
+   psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f logistock/db/migraciones/001_funcionalidades_completas.sql -f logistock/db/migraciones/002_sku_automatico.sql -f logistock/db/grants_local.sql
+   ```
+
    Copia `logistock/backend/.env.example` a `logistock/backend/.env` y completa `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` con lo que devuelva `supabase status` (no subas ese archivo a git).
 
 3. **API NestJS**:
@@ -80,11 +86,10 @@ Según el `.gitignore` de la raíz:
 
 ## Comportamiento conocido (sin maquillar)
 
-La interfaz muestra los códigos HTTP que devuelve la API; no inventa stock, rutas ni reportes.
+La interfaz muestra los códigos HTTP que devuelve la API; no inventa stock, rutas ni reportes. Ningún endpoint responde 501: todo el alcance v1 del RUP está habilitado.
 
-- **`POST /despachos/calcular-ruta`**: si OSRM y Google Directions no entregan ruta, responde **502** (`El motor de rutas no respondió`). La pantalla de despacho no rellena distancia, duración ni ETA en ese caso.
-- **501 (Not Implemented)**, con mensajes del backend:
-  - Reportes: `GET /reportes/resumen`, `GET /reportes/mas-vendidos`, `GET /reportes/alertas-stock`.
-  - Picking: listado de tareas (`GET /picking/tareas`).
-  - Despachos: listado (`GET /despachos`) e iniciar despacho (`POST /despachos/:id/iniciar`).
-  - Inventario: ajuste con `tipo: 'ajuste'` sigue en **501** (`Pendiente: Iteración 2`) salvo los casos que el backend ya implementa (por ejemplo `tipo: 'danio'`, o ajuste negativo que el servicio rechaza con **409** si dejaría stock negativo).
+- **`POST /pedidos` responde 423** si Redis no está arriba (no se obtiene el lock de CU-02). Levántalo con `docker compose up -d` en `logistock/backend`.
+- **`POST /despachos/calcular-ruta` responde 502** si OSRM y Google Directions no entregan ruta. En macOS el puerto 5000 es del receptor AirPlay; por eso `.env.example` usa el servidor público `https://router.project-osrm.org`.
+- **Despacho (CU-06):** solo acepta pedidos en preparación con el picking completado (409 si no) y descuenta el reservado del inventario al asignar.
+- **Entregas (CU-07):** primero se inicia la ruta (`POST /despachos/{id}/iniciar`); confirmar una parada de una ruta no iniciada responde 409.
+- **Recuperar contraseña (CU-11 A1):** en local el correo llega a Inbucket/Mailpit en `http://127.0.0.1:54324`.

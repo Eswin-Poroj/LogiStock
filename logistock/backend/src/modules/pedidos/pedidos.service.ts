@@ -114,6 +114,9 @@ export class PedidosService {
         await this.colaPicking.add('crear-tarea', { pedido_id: pedido.id }, {
           attempts: 3, backoff: { type: 'exponential', delay: 1000 }, removeOnComplete: true,
         });
+        if (dto.cotizacion_id) {
+          await db.from('cotizaciones').update({ pedido_id: pedido.id }).eq('id', dto.cotizacion_id).is('pedido_id', null);
+        }
       } catch (err) {
         await this.compensar(pedido.id, pedido.numero, dto.bodega_id, resueltas.filter((l) => l.reservada), usuario.id);
         throw err;
@@ -136,13 +139,22 @@ export class PedidosService {
   async listar(estado?: string, clienteId?: string, pagina = 1, limite = 20) {
     const desde = (pagina - 1) * limite;
     let q = this.supabase.db.from('pedidos')
-      .select('id, numero, estado, total, created_at, clientes(nombre)')
+      .select('id, numero, estado, total, created_at, clientes(nombre), pedido_lineas(id), despacho_paradas(despachos(codigo, vehiculos(nombre)))')
       .order('created_at', { ascending: false }).range(desde, desde + limite - 1);
     if (estado) q = q.eq('estado', estado);
     if (clienteId) q = q.eq('cliente_id', clienteId);
     const { data, error } = await q;
     if (error) throw new BadRequestException(error.message);
-    return (data ?? []).map((p: any) => ({ id: p.id, numero: p.numero, cliente: p.clientes?.nombre, estado: p.estado, total: p.total, created_at: p.created_at }));
+    return (data ?? []).map((p: any) => {
+      // despacho_paradas.pedido_id es único: a lo sumo una ruta por pedido.
+      const parada = Array.isArray(p.despacho_paradas) ? p.despacho_paradas[0] : p.despacho_paradas;
+      const ruta = parada?.despachos;
+      return {
+        id: p.id, numero: p.numero, cliente: p.clientes?.nombre, estado: p.estado, total: p.total, created_at: p.created_at,
+        lineas: (p.pedido_lineas ?? []).length,
+        despacho: ruta ? { codigo: ruta.codigo, vehiculo: ruta.vehiculos?.nombre ?? '' } : null,
+      };
+    });
   }
 
   async obtener(id: string) {

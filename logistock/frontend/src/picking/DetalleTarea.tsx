@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
@@ -33,8 +33,17 @@ export function DetalleTarea({ tareaId, lectura, onActualizada, ranuraEscaneo = 
   const [cantidad, setCantidad] = useState(1)
   const [error, setError] = useState<ApiError | null>(null)
   const lista = tarea && tarea.lineas.every((linea) => linea.cantidad_recogida >= linea.cantidad)
+  // Solo se actúa sobre una tarea que la API devolvió y que sigue abierta.
+  const abierta = tarea !== null && (tarea.estado === 'pendiente' || tarea.estado === 'en_curso')
+  const campoSku = useRef<HTMLInputElement>(null)
+  const pendientes = (tarea?.lineas ?? []).filter((linea) => linea.cantidad_recogida < linea.cantidad)
+  const skuEscrito = sku.trim().toUpperCase()
+  const lineaEscrita = tarea?.lineas.find((linea) => linea.sku.toUpperCase() === skuEscrito)
+  const skuAjeno = skuEscrito !== '' && tarea !== null && !lineaEscrita
 
   useEffect(() => {
+    setTarea(null)
+    setError(null)
     if (!token || !tareaId || !esUuid(tareaId)) return
     let vivo = true
     api<TareaPicking>(`/picking/tareas/${tareaId}`, { token })
@@ -49,31 +58,56 @@ export function DetalleTarea({ tareaId, lectura, onActualizada, ranuraEscaneo = 
   }
 
   async function escanear() {
-    if (!token || !tareaId || sku.trim() === '' || !Number.isInteger(cantidad) || cantidad < 1) return
+    if (!token || !tarea || !abierta || sku.trim() === '' || !Number.isInteger(cantidad) || cantidad < 1) return
     setError(null)
-    const body: EscaneoNuevo = { sku: sku.trim(), cantidad }
+    const body: EscaneoNuevo = { sku: lineaEscrita?.sku ?? sku.trim(), cantidad }
     try {
-      aplicar(await api<TareaPicking>(`/picking/tareas/${tareaId}/escaneos`, { method: 'POST', token, body }))
+      aplicar(await api<TareaPicking>(`/picking/tareas/${tarea.id}/escaneos`, { method: 'POST', token, body }))
+      setSku('')
+      setCantidad(1)
     } catch (fallo) {
       if (fallo instanceof ApiError) setError(fallo)
     }
   }
 
   async function cerrar(faltante: boolean) {
-    if (!token || !tareaId) return
+    if (!token || !tarea || !abierta) return
     setError(null)
     const body: CompletarPicking = { faltante }
     try {
-      aplicar(await api<TareaPicking>(`/picking/tareas/${tareaId}/completar`, { method: 'POST', token, body }))
+      aplicar(await api<TareaPicking>(`/picking/tareas/${tarea.id}/completar`, { method: 'POST', token, body }))
     } catch (fallo) {
       if (fallo instanceof ApiError) setError(fallo)
     }
   }
 
+  /** Prepara el escaneo de una línea: su SKU y lo que falta por recoger. */
+  function recoger(skuLinea: string, faltan: number) {
+    setSku(skuLinea)
+    setCantidad(faltan)
+    setError(null)
+    campoSku.current?.focus()
+  }
+
   if (!tareaId) return null
-  const escaneo = !lectura && (
+  if (!esUuid(tareaId)) return <p role="alert">Esa tarea no existe. Elige una de la lista o del tablero.</p>
+  const escaneo = !lectura && abierta && (
     <div className="controles-escaneo">
-      <label><span className={ranuraEscaneo ? 'solo-lectores' : undefined}>SKU</span><input placeholder="Escanear o escribir SKU" value={sku} onChange={(evento) => setSku(evento.target.value)} /></label>
+      <label>
+        <span className={ranuraEscaneo ? 'solo-lectores' : undefined}>SKU</span>
+        <input
+          ref={campoSku}
+          list="skus-pendientes"
+          placeholder="Escanear o escribir SKU"
+          aria-describedby="ayuda-sku"
+          value={sku}
+          onChange={(evento) => setSku(evento.target.value)}
+          onKeyDown={(evento) => { if (evento.key === 'Enter') { evento.preventDefault(); void escanear() } }}
+        />
+      </label>
+      <datalist id="skus-pendientes">
+        {pendientes.map((linea) => <option key={linea.pedido_linea_id} value={linea.sku}>{`${linea.nombre} · faltan ${linea.cantidad - linea.cantidad_recogida}`}</option>)}
+      </datalist>
       <label><span className={ranuraEscaneo ? 'solo-lectores' : undefined}>Cantidad</span><input type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} /></label>
       <button type="button" className="boton-confirmar" onClick={() => void escanear()}>Confirmar escaneo</button>
     </div>
@@ -89,6 +123,15 @@ export function DetalleTarea({ tareaId, lectura, onActualizada, ranuraEscaneo = 
       )}
       {tarea && <p className="estado-pedido">{etiquetaEstadoPicking(tarea.estado)}</p>}
       {tarea && <p className="nota">{NOTA[tarea.estado]}</p>}
+      {abierta && !lectura && (
+        <p className="nota" id="ayuda-sku" aria-live="polite">
+          {skuAjeno
+            ? <span className="texto-alerta">El SKU {skuEscrito} no está en esta tarea.</span>
+            : lineaEscrita
+              ? `${lineaEscrita.nombre}${lineaEscrita.ubicacion ? ` en ${lineaEscrita.ubicacion}` : ''}: faltan ${lineaEscrita.cantidad - lineaEscrita.cantidad_recogida}.`
+              : 'Escanea la etiqueta del producto o pulsa Recoger en la línea que vas a tomar.'}
+        </p>
+      )}
       {tarea?.lineas.map((linea) => {
         const completa = linea.cantidad_recogida >= linea.cantidad
         return (
@@ -98,12 +141,18 @@ export function DetalleTarea({ tareaId, lectura, onActualizada, ranuraEscaneo = 
               <strong>{linea.nombre}</strong>
               <span className="sku">{linea.sku}{linea.ubicacion ? ` · ${linea.ubicacion}` : ''}</span>
             </span>
-            <span className="conteo">{linea.cantidad_recogida} / {linea.cantidad}</span>
+            <span className="conteo">
+              {linea.cantidad_recogida} / {linea.cantidad}
+              {!completa && <small>faltan {linea.cantidad - linea.cantidad_recogida}</small>}
+            </span>
+            {abierta && !lectura && !completa && (
+              <button type="button" aria-label={`Recoger ${linea.sku}`} onClick={() => recoger(linea.sku, linea.cantidad - linea.cantidad_recogida)}>Recoger</button>
+            )}
           </div>
         )
       })}
       {escaneo && (ranuraEscaneo ? createPortal(escaneo, ranuraEscaneo) : escaneo)}
-      {!lectura && (
+      {!lectura && abierta && (
         <div className="controles-escaneo">
           <button type="button" className="boton-alerta" onClick={() => void cerrar(true)}>Reportar faltante</button>
           <button type="button" className="boton-primario" disabled={!lista} onClick={() => void cerrar(false)}>Marcar como listo para despacho</button>

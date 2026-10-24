@@ -3,7 +3,7 @@ import type { Rol } from '../dominio/tipos'
 import { accesoDe, moduloDeRuta, modulosDe } from './modulos'
 
 const VISIBLES: Record<Rol, string[]> = {
-  administrador: ['Pedidos', 'Inventario', 'Picking', 'Despacho', 'Reportes'],
+  administrador: ['Pedidos', 'Inventario', 'Picking', 'Despacho', 'Reportes', 'Catálogo'],
   asesor_ventas: ['Pedidos', 'Inventario'],
   operario_bodega: ['Inventario', 'Picking'],
   despachador: ['Picking', 'Despacho'],

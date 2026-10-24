@@ -14,10 +14,15 @@ export function tituloColumna(columna: ColumnaPedido): 'Creado' | 'En preparaci�
   return 'Entregado'
 }
 
-export function agruparTareas<T extends { estado: EstadoPicking }>(tareas: T[]): Record<'creado' | 'en_preparacion', T[]> {
+/**
+ * Las tareas solo ocupan Creado y En preparación. Cuando su pedido ya salió (despachado o
+ * entregado) el tablero lo muestra en esa columna como pedido, no otra vez como tarea.
+ */
+export function agruparTareas<T extends { estado: EstadoPicking; estado_pedido?: string }>(tareas: T[]): Record<'creado' | 'en_preparacion', T[]> {
+  const enBodega = tareas.filter((tarea) => tarea.estado_pedido !== 'despachado' && tarea.estado_pedido !== 'entregado')
   return {
-    creado: tareas.filter((tarea) => columnaDeTarea(tarea.estado) === 'creado'),
-    en_preparacion: tareas.filter((tarea) => columnaDeTarea(tarea.estado) === 'en_preparacion'),
+    creado: enBodega.filter((tarea) => columnaDeTarea(tarea.estado) === 'creado'),
+    en_preparacion: enBodega.filter((tarea) => columnaDeTarea(tarea.estado) === 'en_preparacion'),
   }
 }
 

@@ -17,6 +17,9 @@ import { DetallePedido } from './pedidos/DetallePedido'
 import { TableroPicking } from './picking/TableroPicking'
 import { TareaPicking } from './picking/TareaPicking'
 import { Reportes } from './reportes/Reportes'
+import { Catalogo } from './catalogo/Catalogo'
+import { FlotaDespacho } from './despachos/FlotaDespacho'
+import { Restablecer } from './auth/Restablecer'
 
 function Privada({ children }: { children: ReactNode }) {
   const { usuario } = useSesion()
@@ -28,6 +31,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/restablecer" element={<Restablecer />} />
       <Route path="/" element={<Inicio />} />
       <Route path="/pedidos/:id" element={<Privada><DetallePedido /></Privada>} />
       <Route path="/pedidos" element={<Privada><FormularioPedido /></Privada>} />
@@ -41,7 +45,9 @@ export function App() {
       <Route path="/despachos/seguimiento" element={<Privada><ListaDespachos /></Privada>} />
       <Route path="/despachos/entrega" element={<Privada><EntregaParada /></Privada>} />
       <Route path="/despachos/iniciar" element={<Privada><IniciarDespacho /></Privada>} />
+      <Route path="/despachos/flota" element={<Privada><FlotaDespacho /></Privada>} />
       <Route path="/reportes" element={<Privada><Reportes /></Privada>} />
+      <Route path="/catalogo" element={<Privada><Catalogo /></Privada>} />
     </Routes>
   )
 }

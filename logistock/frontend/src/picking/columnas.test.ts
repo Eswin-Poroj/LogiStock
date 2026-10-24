@@ -25,4 +25,14 @@ describe('columnas de picking', () => {
     expect(grupos.creado.map((tarea) => tarea.id)).toEqual(['a'])
     expect(grupos.en_preparacion.map((tarea) => tarea.id)).toEqual(['b', 'c'])
   })
+
+  it('no repite como tarea el pedido que ya se despachó o entregó', () => {
+    const grupos = agruparTareas([
+      { id: 'a', estado: 'completado', estado_pedido: 'en_preparacion' },
+      { id: 'b', estado: 'completado', estado_pedido: 'despachado' },
+      { id: 'c', estado: 'completado', estado_pedido: 'entregado' },
+    ])
+    expect(grupos.en_preparacion.map((tarea) => tarea.id)).toEqual(['a'])
+    expect(grupos.creado).toEqual([])
+  })
 })

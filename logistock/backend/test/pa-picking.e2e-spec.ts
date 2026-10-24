@@ -97,6 +97,16 @@ describe('PA picking', () => {
       expect(linea.data!.cantidad_recogida).toBe(0);
     });
 
+    it('GET /picking/tareas incluye la tarea con número de pedido y cliente', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/picking/tareas')
+        .set('Authorization', `Bearer ${semilla.operario.token}`);
+      expect(res.status).toBe(200);
+      const tarea = res.body.find((t: { id: string }) => t.id === tareaId);
+      expect(tarea).toMatchObject({ pedido_id: pedidoId, numero_pedido: expect.stringMatching(/^PED-/), cliente: expect.any(String) });
+      expect(tarea.lineas[0]).toMatchObject({ sku: skuLinea, cantidad: 40, cantidad_recogida: 0 });
+    });
+
     it('PA-20 cerrar picking incompleto', async () => {
       const vacio = await request(app.getHttpServer())
         .post(`/api/v1/picking/tareas/${tareaId}/completar`)

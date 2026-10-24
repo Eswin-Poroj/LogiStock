@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { AvisoApi } from '../api/AvisoApi'
-import { ApiError } from '../api/cliente'
+import { ApiError, api } from '../api/cliente'
 import { useSesion } from './sesion'
 
 export function Login() {
@@ -11,6 +11,7 @@ export function Login() {
   const [clave, setClave] = useState('')
   const [error, setError] = useState<ApiError | null>(null)
   const [recuperar, setRecuperar] = useState(false)
+  const [avisoRecuperar, setAvisoRecuperar] = useState<string | null>(null)
 
   if (usuario) return <Navigate to="/" replace />
 
@@ -19,6 +20,17 @@ export function Login() {
     setError(null)
     try {
       await entrar(correo, clave)
+    } catch (fallo) {
+      if (fallo instanceof ApiError) setError(fallo)
+    }
+  }
+
+  async function pedirEnlace() {
+    setError(null)
+    setAvisoRecuperar(null)
+    try {
+      const respuesta = await api<{ mensaje: string }>('/auth/recuperar', { method: 'POST', body: { correo } })
+      setAvisoRecuperar(respuesta.mensaje)
     } catch (fallo) {
       if (fallo instanceof ApiError) setError(fallo)
     }
@@ -49,7 +61,13 @@ export function Login() {
           </label>
           <button type="submit" className="boton-primario">Entrar</button>
           <button type="button" className="login-olvido" onClick={() => setRecuperar(true)}>¿Olvidaste tu contraseña?</button>
-          {recuperar && <p role="status">La recuperación de contraseña no está en la API. Pide el restablecimiento al administrador.</p>}
+          {recuperar && (
+            <div className="login-recuperar">
+              <p>Escribe tu correo arriba y te enviaremos un enlace para crear una contraseña nueva.</p>
+              <button type="button" disabled={!correo.includes('@')} onClick={() => void pedirEnlace()}>Enviar enlace</button>
+              {avisoRecuperar && <p role="status">{avisoRecuperar}</p>}
+            </div>
+          )}
         </form>
       </section>
     </div>

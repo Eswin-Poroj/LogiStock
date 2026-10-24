@@ -13,6 +13,14 @@ import { DetalleTarea } from './DetalleTarea'
 import { leerTareas } from './leerTareas'
 import { MenuPicking } from './MenuPicking'
 
+/** Figura 7: "2 líneas · Q 2,940.00"; omite lo que la API no mandó. */
+export function resumenTarjeta(lineas: number | undefined, total: number | undefined): string {
+  const partes: string[] = []
+  if (lineas !== undefined) partes.push(`${lineas} ${lineas === 1 ? 'línea' : 'líneas'}`)
+  if (total !== undefined) partes.push(quetzales(Number(total)))
+  return partes.join(' · ')
+}
+
 export function TableroPicking() {
   const { token, usuario } = useSesion()
   const [tareaId, setTareaId] = useState<string | null>(null)
@@ -73,8 +81,10 @@ export function TableroPicking() {
                 <article key={tarea.id} className={tarea.id === tareaId ? 'tarjeta-tarea activa' : 'tarjeta-tarea'}>
                   <Link className="numero" to={`/picking/tarea?id=${tarea.id}`}>{tarea.numero_pedido ?? tarea.pedido_id}</Link>
                   {tarea.cliente && <p className="cliente">{tarea.cliente}</p>}
-                  <p className="resumen">{tarea.lineas.length} {tarea.lineas.length === 1 ? 'línea' : 'líneas'}</p>
+                  <p className="resumen">{resumenTarjeta(tarea.lineas.length, tarea.total)}</p>
                   {progreso && <p className="progreso">{progreso}</p>}
+                  {tarea.estado === 'completado' && <p className="progreso">Listo para despacho</p>}
+                  {tarea.estado === 'con_faltante' && <p className="progreso texto-alerta">Con faltante</p>}
                   <button type="button" onClick={() => setTareaId(tarea.id)}>Abrir</button>
                 </article>
               )
@@ -83,7 +93,8 @@ export function TableroPicking() {
               <article key={pedido.id} className="tarjeta-tarea">
                 <p className="numero">{pedido.numero}</p>
                 <p className="cliente">{pedido.cliente}</p>
-                <p className="resumen">{quetzales(pedido.total)}</p>
+                <p className="resumen">{resumenTarjeta(pedido.lineas, pedido.total)}</p>
+                {pedido.despacho && <p className="ruta-tarjeta">Ruta {pedido.despacho.codigo} · {pedido.despacho.vehiculo}</p>}
               </article>
             ))}
           </section>

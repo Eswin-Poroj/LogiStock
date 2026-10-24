@@ -3,9 +3,9 @@ import type { Rol } from '../dominio/tipos'
 export type AccesoModulo = 'escritura' | 'lectura'
 
 export interface Modulo {
-  id: 'pedidos' | 'inventario' | 'picking' | 'despachos' | 'reportes'
-  etiqueta: 'Pedidos' | 'Inventario' | 'Picking' | 'Despacho' | 'Reportes'
-  ruta: '/pedidos' | '/inventario' | '/picking' | '/despachos' | '/reportes'
+  id: 'pedidos' | 'inventario' | 'picking' | 'despachos' | 'reportes' | 'catalogo'
+  etiqueta: 'Pedidos' | 'Inventario' | 'Picking' | 'Despacho' | 'Reportes' | 'Catálogo'
+  ruta: '/pedidos' | '/inventario' | '/picking' | '/despachos' | '/reportes' | '/catalogo'
   acceso: Readonly<Partial<Record<Rol, AccesoModulo>>>
 }
 
@@ -15,6 +15,8 @@ export const MODULOS: readonly Modulo[] = [
   { id: 'picking', etiqueta: 'Picking', ruta: '/picking', acceso: { operario_bodega: 'escritura', despachador: 'lectura', administrador: 'escritura' } },
   { id: 'despachos', etiqueta: 'Despacho', ruta: '/despachos', acceso: { despachador: 'escritura', administrador: 'escritura' } },
   { id: 'reportes', etiqueta: 'Reportes', ruta: '/reportes', acceso: { administrador: 'escritura' } },
+  // Visión: el administrador gestiona bodegas y el catálogo maestro (productos, proveedores, clientes).
+  { id: 'catalogo', etiqueta: 'Catálogo', ruta: '/catalogo', acceso: { administrador: 'escritura' } },
 ]
 
 export function modulosDe(rol: Rol): readonly Modulo[] {

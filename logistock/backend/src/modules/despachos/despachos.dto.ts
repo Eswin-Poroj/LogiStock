@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 
 export class RutaSolicitudDto {
   @IsUUID() bodega_id: string;
@@ -18,5 +18,12 @@ export class DespachoNuevoDto {
   @IsUUID() conductor_id: string;
   @IsUUID() bodega_id: string;
   @IsOptional() @IsString() salida_prevista?: string;
+  /** Lo que devolvió calcular-ruta, para que reportes y seguimiento lo muestren. */
+  @IsOptional() @IsNumber() @Min(0) distancia_km?: number;
+  @IsOptional() @IsInt() @Min(0) duracion_min?: number;
   @ValidateNested({ each: true }) @Type(() => DespachoParadaNuevaDto) @ArrayMinSize(1) paradas: DespachoParadaNuevaDto[];
+}
+
+export class FiltroDespachosDto {
+  @IsOptional() @IsIn(['planificado', 'en_ruta', 'finalizado', 'cancelado']) estado?: string;
 }

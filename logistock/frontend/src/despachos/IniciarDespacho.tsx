@@ -1,32 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
 import { useSesion } from '../auth/sesion'
 import type { Despacho } from '../dominio/tipos'
-import { esUuid } from '../dominio/uuid'
-import { MenuDespachos } from './MenuDespachos'
 import { Encabezado } from '../navegacion/Encabezado'
+import { claseDespacho, etiquetaDespacho } from './estadoDespacho'
+import { MenuDespachos } from './MenuDespachos'
+import { ParadasDespacho } from './ParadasDespacho'
+import { useDespachos } from './useDespachos'
 
+/** CU-07 paso 1: el chofer abre su ruta planificada y la inicia. */
 export function IniciarDespacho() {
   const { token } = useSesion()
+  const planificados = useDespachos(token, 'planificado')
   const [despachoId, setDespachoId] = useState('')
+  const [iniciado, setIniciado] = useState<Despacho | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
-  const [despacho, setDespacho] = useState<Despacho | null>(null)
-
-  useEffect(() => {
-    if (!token || !esUuid(despachoId)) return
-    let vivo = true
-    api<Despacho>(`/despachos/${despachoId}`, { token })
-      .then((dato) => { if (vivo) setDespacho(dato) })
-      .catch((fallo: unknown) => { if (vivo && fallo instanceof ApiError) setError(fallo) })
-    return () => { vivo = false }
-  }, [despachoId, token])
+  const despacho = iniciado ?? planificados.items.find((fila) => fila.id === despachoId) ?? null
 
   async function iniciar() {
-    if (!token || !esUuid(despachoId)) return
+    if (!token || !despachoId) return
     setError(null)
     try {
-      setDespacho(await api<Despacho>(`/despachos/${despachoId}/iniciar`, { method: 'POST', token }))
+      setIniciado(await api<Despacho>(`/despachos/${despachoId}/iniciar`, { method: 'POST', token }))
     } catch (fallo) {
       if (fallo instanceof ApiError) setError(fallo)
     }
@@ -34,18 +31,31 @@ export function IniciarDespacho() {
 
   return (
     <section className="pantalla pantalla-ficha">
-      <Encabezado titulo="Iniciar despacho">
+      <Encabezado titulo="Iniciar ruta">
         <MenuDespachos />
       </Encabezado>
       <div className="ficha">
-        {error && <AvisoApi error={error} />}
+        {(error ?? planificados.error) && <AvisoApi error={(error ?? planificados.error) as ApiError} />}
         <label>
           Despacho
-          <input value={despachoId} onChange={(evento) => setDespachoId(evento.target.value)} />
+          <select value={despachoId} onChange={(evento) => { setIniciado(null); setDespachoId(evento.target.value) }}>
+            <option value="">Selecciona una ruta planificada</option>
+            {planificados.items.map((fila) => (
+              <option key={fila.id} value={fila.id}>{fila.codigo} · {fila.conductor} · {fila.paradas.length} paradas</option>
+            ))}
+          </select>
         </label>
-        {despacho?.paradas.map((parada) => <p key={parada.id}>Parada {parada.orden}</p>)}
-        {despacho && <p>Estado {despacho.estado}</p>}
-        <button type="button" className="boton-primario" disabled={!esUuid(despachoId)} onClick={() => void iniciar()}>Iniciar ruta</button>
+        {!planificados.cargando && planificados.items.length === 0 && !iniciado && <p className="nota">No hay rutas planificadas.</p>}
+        {despacho && (
+          <>
+            <p>Estado <span className={claseDespacho(despacho.estado)}>{etiquetaDespacho(despacho.estado)}</span></p>
+            <p className="nota">{despacho.vehiculo} · {despacho.conductor}</p>
+            <ParadasDespacho despacho={despacho} />
+          </>
+        )}
+        {despacho?.estado === 'en_ruta'
+          ? <Link className="boton-primario" to={`/despachos/entrega?id=${despacho.id}`}>Ir a confirmar entregas</Link>
+          : <button type="button" className="boton-primario" disabled={!despacho} onClick={() => void iniciar()}>Iniciar ruta</button>}
       </div>
     </section>
   )

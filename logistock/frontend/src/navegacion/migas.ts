@@ -9,8 +9,10 @@ export function migasDe(pathname: string): string {
   if (pathname.startsWith('/picking')) return 'Operaciones / Picking'
   if (pathname.startsWith('/despachos/seguimiento')) return 'Operaciones / Despacho / Seguimiento'
   if (pathname.startsWith('/despachos/iniciar')) return 'Operaciones / Despacho / Iniciar'
+  if (pathname.startsWith('/despachos/flota')) return 'Operaciones / Despacho / Flota'
   if (pathname.startsWith('/despachos/entrega')) return 'Operaciones / Despacho / Entrega'
   if (pathname.startsWith('/despachos')) return 'Operaciones / Despacho'
+  if (pathname.startsWith('/catalogo')) return 'Gestión / Catálogo'
   if (pathname.startsWith('/reportes')) return 'Gestión / Reportes'
   return 'LogiStock'
 }

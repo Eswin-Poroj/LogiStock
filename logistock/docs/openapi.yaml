@@ -58,6 +58,40 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/LoginResponse' }
         '401': { $ref: '#/components/responses/NoAutorizado' }
+  /auth/recuperar:
+    post:
+      tags: [Auth]
+      summary: Enviar enlace de recuperación de contraseña (CU-11 A1)
+      description: Responde 202 exista o no la cuenta, para no revelar qué correos están registrados.
+      security: []
+      operationId: recuperarClave
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [correo], properties: { correo: { type: string, format: email } } }
+      responses:
+        '202': { description: Enlace enviado si la cuenta existe }
+        '400': { $ref: '#/components/responses/Validacion' }
+  /auth/restablecer:
+    post:
+      tags: [Auth]
+      summary: Fijar la contraseña nueva con el token del enlace
+      security: []
+      operationId: restablecerClave
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [access_token, clave]
+              properties:
+                access_token: { type: string }
+                clave: { type: string, minLength: 8 }
+      responses:
+        '200': { description: Contraseña actualizada }
+        '401': { $ref: '#/components/responses/NoAutorizado' }
   /auth/me:
     get:
       tags: [Auth]
@@ -115,6 +149,7 @@ paths:
         - { name: q, in: query, description: Búsqueda por SKU o nombre, schema: { type: string } }
         - { $ref: '#/components/parameters/Pagina' }
         - { $ref: '#/components/parameters/Limite' }
+        - { name: incluir_inactivos, in: query, schema: { type: boolean, default: false } }
       responses:
         '200':
           description: Lista de productos
@@ -142,6 +177,177 @@ paths:
         '400': { $ref: '#/components/responses/Validacion' }
         '403': { $ref: '#/components/responses/Prohibido' }
         '409': { $ref: '#/components/responses/Conflicto' }
+  /productos/{id}:
+    patch:
+      tags: [Catálogos]
+      summary: Editar producto (precio, mínimo, activo, ubicación)
+      description: Solo administrador. Con bodega_id fija la ubicación del producto en esa bodega.
+      operationId: editarProducto
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                unidad: { type: string }
+                precio_unitario: { type: number, minimum: 0 }
+                stock_minimo: { type: integer, minimum: 0 }
+                activo: { type: boolean }
+                bodega_id: { type: string, format: uuid }
+                ubicacion: { type: string, example: A-03-2 }
+      responses:
+        '200':
+          description: Producto actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Producto' }
+        '404': { description: Producto no encontrado }
+  /productos/{id}/sustitutos:
+    get:
+      tags: [Catálogos]
+      summary: Sustitutos con stock (CU-01 E1)
+      description: Productos activos de la misma categoría (prefijo del SKU) con disponible suficiente en la bodega.
+      operationId: sustitutosProducto
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: bodega_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: cantidad, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+      responses:
+        '200':
+          description: Hasta 5 sustitutos, primero los de más existencia
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    producto_id: { type: string, format: uuid }
+                    sku: { type: string }
+                    nombre: { type: string }
+                    precio_unitario: { type: number }
+                    disponible: { type: integer }
+  /proveedores:
+    get:
+      tags: [Catálogos]
+      summary: Listar proveedores
+      operationId: listarProveedores
+      responses:
+        '200': { description: Proveedores }
+    post:
+      tags: [Catálogos]
+      summary: Registrar proveedor
+      description: Rol operario_bodega (Encargado de Compras) o administrador.
+      operationId: crearProveedor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre]
+              properties:
+                nombre: { type: string }
+                nit: { type: string }
+                telefono: { type: string }
+                correo: { type: string, format: email }
+      responses:
+        '201': { description: Proveedor creado }
+        '409': { $ref: '#/components/responses/Conflicto' }
+  /cotizaciones:
+    get:
+      tags: [Pedidos]
+      summary: Listar cotizaciones guardadas
+      operationId: listarCotizaciones
+      parameters:
+        - { name: cliente_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Cotizaciones; pedido_id indica si ya se convirtió en pedido }
+    post:
+      tags: [Pedidos]
+      summary: Guardar cotización (no reserva stock)
+      operationId: crearCotizacion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cliente_id, bodega_id, lineas]
+              properties:
+                cliente_id: { type: string, format: uuid }
+                bodega_id: { type: string, format: uuid }
+                lineas: { type: array, minItems: 1, items: { $ref: '#/components/schemas/LineaNueva' } }
+      responses:
+        '201': { description: Cotización con número COT-xxxxxx, totales y líneas }
+        '400': { $ref: '#/components/responses/Validacion' }
+  /cotizaciones/{id}:
+    get:
+      tags: [Pedidos]
+      summary: Detalle de la cotización con líneas
+      operationId: obtenerCotizacion
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { description: Cotización }
+        '404': { description: No existe }
+  /bodegas/{id}:
+    patch:
+      tags: [Catálogos]
+      summary: Editar o desactivar bodega
+      description: Solo administrador.
+      operationId: editarBodega
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                direccion: { type: string }
+                latitud: { type: number }
+                longitud: { type: number }
+                activa: { type: boolean }
+      responses:
+        '200': { description: Bodega actualizada }
+        '404': { description: No existe }
+  /vehiculos/{id}:
+    patch:
+      tags: [Catálogos]
+      summary: Activar o desactivar vehículo
+      description: Rol despachador o administrador.
+      operationId: activarVehiculo
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [activo], properties: { activo: { type: boolean } } }
+      responses:
+        '200': { description: Vehículo actualizado }
+  /conductores/{id}:
+    patch:
+      tags: [Catálogos]
+      summary: Activar o desactivar conductor
+      description: Rol despachador o administrador.
+      operationId: activarConductor
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [activo], properties: { activo: { type: boolean } } }
+      responses:
+        '200': { description: Conductor actualizado }
   /bodegas:
     get:
       tags: [Catálogos]
@@ -155,6 +361,26 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Bodega' }
+    post:
+      tags: [Catálogos]
+      summary: Crear bodega
+      description: Solo administrador. Crea la fila de stock en 0 de cada producto activo.
+      operationId: crearBodega
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre, latitud, longitud]
+              properties:
+                nombre: { type: string }
+                direccion: { type: string }
+                latitud: { type: number, minimum: -90, maximum: 90 }
+                longitud: { type: number, minimum: -180, maximum: 180 }
+      responses:
+        '201': { description: Bodega creada }
+        '409': { $ref: '#/components/responses/Conflicto' }
   /vehiculos:
     get:
       tags: [Catálogos]
@@ -168,6 +394,25 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Vehiculo' }
+    post:
+      tags: [Catálogos]
+      summary: Registrar vehículo
+      description: Rol despachador o administrador. La placa se guarda en mayúsculas.
+      operationId: crearVehiculo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre, placa, capacidad_kg]
+              properties:
+                nombre: { type: string }
+                placa: { type: string }
+                capacidad_kg: { type: integer, minimum: 1 }
+      responses:
+        '201': { description: Vehículo creado }
+        '409': { $ref: '#/components/responses/Conflicto' }
   /conductores:
     get:
       tags: [Catálogos]
@@ -181,6 +426,23 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Conductor' }
+    post:
+      tags: [Catálogos]
+      summary: Registrar conductor
+      description: Rol despachador o administrador.
+      operationId: crearConductor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre]
+              properties:
+                nombre: { type: string }
+                telefono: { type: string }
+      responses:
+        '201': { description: Conductor creado }
   /inventario:
     get:
       tags: [Inventario]
@@ -440,7 +702,7 @@ paths:
     post:
       tags: [Despachos]
       summary: Asignar despacho
-      description: Crea el despacho con las paradas en el orden indicado y pasa los pedidos a Despachado. Rol despachador o administrador.
+      description: Solo pedidos en preparación con el picking completado (409 si no). Crea el despacho con las paradas en orden, pasa los pedidos a Despachado y descuenta el reservado del inventario. Rol despachador o administrador.
       operationId: crearDespacho
       requestBody:
         required: true
@@ -721,13 +983,16 @@ components:
             activo: { type: boolean }
     ProductoNuevo:
       type: object
-      required: [sku, nombre, precio_unitario]
+      required: [categoria, nombre, precio_unitario]
+      description: El SKU no se envía; se genera como PREFIJO-0001 con las tres primeras letras de la categoría.
       properties:
-        sku: { type: string, example: FER-0012 }
+        categoria: { type: string, example: Ferretería }
         nombre: { type: string, example: Cemento gris 42.5 kg }
         unidad: { type: string, default: unidad }
         precio_unitario: { type: number, format: double, minimum: 0, example: 78.0 }
         stock_minimo: { type: integer, minimum: 0, default: 0 }
+        bodega_id: { type: string, format: uuid, description: Si se indica, crea la fila de stock en 0 con la ubicación }
+        ubicacion: { type: string, example: A-03-2 }
     Bodega:
       type: object
       properties:
@@ -808,7 +1073,7 @@ components:
         created_at: { type: string, format: date-time }
     AjusteNuevo:
       type: object
-      required: [producto_id, bodega_id, tipo, cantidad]
+      required: [producto_id, bodega_id, tipo, cantidad, motivo]
       properties:
         producto_id: { type: string, format: uuid }
         bodega_id: { type: string, format: uuid }
@@ -832,6 +1097,7 @@ components:
           type: array
           minItems: 1
           items: { $ref: '#/components/schemas/LineaNueva' }
+        cotizacion_id: { type: string, format: uuid, description: Cotización guardada de la que nace el pedido }
     LineaPedido:
       type: object
       properties:
@@ -941,6 +1207,8 @@ components:
         conductor_id: { type: string, format: uuid }
         bodega_id: { type: string, format: uuid }
         salida_prevista: { type: string, format: date-time }
+        distancia_km: { type: number, minimum: 0, description: La que devolvió calcular-ruta }
+        duracion_min: { type: integer, minimum: 0 }
         paradas:
           type: array
           minItems: 1
@@ -969,6 +1237,9 @@ components:
               id: { type: string, format: uuid }
               orden: { type: integer }
               pedido_id: { type: string, format: uuid }
+              numero_pedido: { type: string }
+              cliente: { type: string }
+              direccion: { type: string }
               eta: { type: string, format: date-time }
               entregada_at: { type: string, format: date-time, nullable: true }
     ReporteResumen:

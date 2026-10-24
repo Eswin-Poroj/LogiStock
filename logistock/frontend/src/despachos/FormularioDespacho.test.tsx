@@ -8,6 +8,7 @@ import { BODEGA_ID, CONDUCTOR_ID, DESPACHO_ID, PEDIDO_ID, VEHICULO_ID } from '..
 import { textoDuracion } from './formatoRuta'
 
 const OTRO_PEDIDO = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const SIN_PICKING = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 
 const pedidosListos = [
   { id: PEDIDO_ID, numero: 'PED-000231', cliente: 'Ferretería El Tornillo', estado: 'en_preparacion', total: 7484.4, created_at: '2026-10-12T00:00:00.000Z' },
@@ -28,7 +29,8 @@ function catalogos(url: string) {
   if (url.endsWith('/vehiculos')) return { status: 200, body: [{ id: VEHICULO_ID, nombre: 'Camión 02' }] }
   if (url.endsWith('/conductores')) return { status: 200, body: [{ id: CONDUCTOR_ID, nombre: 'Luis Hernández' }] }
   if (url.endsWith('/bodegas')) return { status: 200, body: [{ id: BODEGA_ID, nombre: 'Bodega Central' }] }
-  if (url.includes('/pedidos?estado=en_preparacion')) return { status: 200, body: pedidosListos }
+  if (url.includes('/pedidos?estado=en_preparacion')) return { status: 200, body: [...pedidosListos, { id: SIN_PICKING, numero: 'PED-000229', cliente: 'Sin picking', estado: 'en_preparacion', total: 5, created_at: '2026-10-12T00:00:00.000Z' }] }
+  if (url.includes('/picking/tareas?estado=completado')) return { status: 200, body: pedidosListos.map((p, i) => ({ id: `t-${i}`, pedido_id: p.id, estado: 'completado', lineas: [] })) }
   return null
 }
 
@@ -58,6 +60,8 @@ describe('planificar despacho', () => {
     renderConSesion(<App />, 'despachador', '/despachos')
     expect(await screen.findByRole('heading', { name: 'Planificar despacho y ruta' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Asignar despacho' })).toBeDisabled()
+    expect(await screen.findByText('PED-000231')).toBeInTheDocument()
+    expect(screen.queryByText('Sin picking')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Pedido' })).not.toBeInTheDocument()
     const user = await elegirCatalogos()
     expect(screen.getByRole('button', { name: 'Asignar despacho' })).toBeDisabled()

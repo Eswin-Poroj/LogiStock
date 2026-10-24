@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, HttpException, Injectable, NotFoundException, NotImplementedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { UsuarioActual } from '../../common/auth/roles.decorator';
 import { SupabaseService } from '../../common/supabase/supabase.service';
 import { AjusteNuevoDto, EntradaNuevaDto } from './inventario.dto';
@@ -78,11 +78,19 @@ export class InventarioService {
 
   async registrarAjuste(dto: AjusteNuevoDto, usuario: UsuarioActual) {
     if (dto.tipo === 'danio') return this.registrarDanio(dto, usuario);
+    if (dto.cantidad === 0) throw new BadRequestException('La cantidad del ajuste debe ser distinta de cero');
     const stock = await this.leerStockObligatorio(dto.producto_id, dto.bodega_id);
-    if (dto.cantidad < 0 && stock.disponible + dto.cantidad < 0) {
+    if (stock.disponible + dto.cantidad < 0) {
       throw new ConflictException('El ajuste dejaría el stock negativo');
     }
-    throw new NotImplementedException('Pendiente: Iteración 2');
+    // La función repite la condición dentro del UPDATE: si otro movimiento ganó la carrera, devuelve null.
+    const { data, error } = await this.supabase.db.rpc('ajustar_stock', {
+      p_producto: dto.producto_id, p_bodega: dto.bodega_id, p_cantidad: dto.cantidad,
+      p_motivo: dto.motivo, p_usuario: usuario.id,
+    });
+    if (error) throw new BadRequestException(error.message);
+    if (!data || !(data as { id?: string }).id) throw new ConflictException('El ajuste dejaría el stock negativo');
+    return data;
   }
 
   private async leerStockObligatorio(productoId: string, bodegaId: string) {
@@ -108,7 +116,7 @@ export class InventarioService {
     if (!actualizado) throw new ConflictException('No hay suficiente disponible para registrar el daño');
     const mov = await this.supabase.db.from('movimientos_stock').insert({
       producto_id: dto.producto_id, bodega_id: dto.bodega_id, tipo: 'danio',
-      cantidad: -unidades, referencia: dto.motivo ?? null, usuario_id: usuario.id,
+      cantidad: -unidades, referencia: dto.motivo, usuario_id: usuario.id,
     }).select('*').single();
     if (mov.error || !mov.data) throw new BadRequestException(mov.error?.message ?? 'No se pudo registrar el movimiento');
     return mov.data;
