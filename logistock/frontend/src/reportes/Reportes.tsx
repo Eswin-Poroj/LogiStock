@@ -7,13 +7,13 @@ import type { Bodega } from '../dominio/tipos'
 import { Encabezado } from '../navegacion/Encabezado'
 import { csvConBom } from './csv'
 import type { AlertaStock, FilaVendida, ResumenReporte } from './leerReportes'
-import { esAlertas, esResumen, esVendidos } from './leerReportes'
+import { conFiltros, esAlertas, esResumen, esVendidos, etiquetaDia } from './leerReportes'
 
 type Vista = 'resumen' | 'vendidos' | 'alertas'
 type Fallo = ApiError | 'formato' | null
 
 function etiquetaAlerta(estado: AlertaStock['estado']): 'Reponer' | 'Agotado' {
-  return estado === 'reponer' ? 'Reponer' : 'Agotado'
+  return estado === 'stock_bajo' ? 'Reponer' : 'Agotado'
 }
 
 export function Reportes() {
@@ -47,19 +47,22 @@ export function Reportes() {
         if (vivo && fallo instanceof ApiError) setFallo(fallo)
       }
     }
-    void cargar('/reportes/resumen', setResumen, setFalloResumen, esResumen)
-    void cargar('/reportes/mas-vendidos', setVendidos, setFalloVendidos, esVendidos)
-    void cargar('/reportes/alertas-stock', setAlertas, setFalloAlertas, esAlertas)
+    setFalloResumen(null)
+    setFalloVendidos(null)
+    setFalloAlertas(null)
+    void cargar(conFiltros('/reportes/resumen', { bodega_id: bodegaId, desde, hasta }), setResumen, setFalloResumen, esResumen)
+    void cargar(conFiltros('/reportes/mas-vendidos', { desde, hasta, limite: '5' }), setVendidos, setFalloVendidos, esVendidos)
+    void cargar(conFiltros('/reportes/alertas-stock', { bodega_id: bodegaId }), setAlertas, setFalloAlertas, esAlertas)
     return () => { vivo = false }
-  }, [token])
+  }, [token, bodegaId, desde, hasta])
 
   function exportar() {
     const filas: string[][] = [['SKU', 'PRODUCTO', 'UNIDADES', 'DISPONIBLE', 'ESTADO']]
     if (verVendidos && vendidos) {
-      for (const fila of vendidos) filas.push([fila.sku, fila.producto, String(fila.unidades), '', ''])
+      for (const fila of vendidos) filas.push([fila.sku, fila.nombre, String(fila.unidades), '', ''])
     }
     if (verAlertas && alertas) {
-      for (const fila of alertas) filas.push([fila.sku, fila.producto, '', String(fila.disponible), etiquetaAlerta(fila.estado)])
+      for (const fila of alertas) filas.push([fila.sku, fila.nombre, '', String(fila.disponible), etiquetaAlerta(fila.estado)])
     }
     const blob = new Blob([csvConBom(filas)], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -111,8 +114,8 @@ export function Reportes() {
         <div className="metricas">
           <div className="metrica"><span>Pedidos despachados</span><p>{resumen.pedidos_despachados}</p><small>en el período</small></div>
           <div className="metrica"><span>Entregas a tiempo</span><p>{resumen.entregas_a_tiempo_pct} %</p><small>del total entregado</small></div>
-          <div className="metrica"><span>Rotación de inventario</span><p>{resumen.rotacion}x</p><small>veces en el período</small></div>
-          <div className="metrica"><span>Pedidos con backorder</span><p>{resumen.pedidos_backorder}</p><small>con líneas pendientes</small></div>
+          <div className="metrica"><span>Rotación de inventario</span><p>{resumen.rotacion_inventario}x</p><small>veces en el período</small></div>
+          <div className="metrica"><span>Pedidos con backorder</span><p>{resumen.pedidos_con_backorder}</p><small>con líneas pendientes</small></div>
         </div>
           )}
         </section>
@@ -121,13 +124,13 @@ export function Reportes() {
         {verResumen && (
           <section className="tarjeta bloque-grafica" aria-labelledby="titulo-grafica">
             <h2 id="titulo-grafica">Pedidos despachados por día</h2>
-            {resumen && resumen.despachos_por_dia.length === 0 && <p className="nota">Sin despachos en el período.</p>}
-            {resumen && resumen.despachos_por_dia.length > 0 && (
+            {resumen && resumen.despachos_por_dia.every((dia) => dia.cantidad === 0) && <p className="nota">Sin despachos en el período.</p>}
+            {resumen && resumen.despachos_por_dia.some((dia) => dia.cantidad > 0) && (
               <div className="serie-dias">
                 {resumen.despachos_por_dia.map((dia) => (
-                  <div className="barra-dia" key={dia.etiqueta}>
+                  <div className="barra-dia" key={dia.fecha}>
                     <div style={{ height: `${(dia.cantidad / maximoDia) * 85}%` }} />
-                    <span className="dia">{dia.etiqueta}</span>
+                    <span className="dia">{etiquetaDia(dia.fecha)}</span>
                     <span className="valor">{dia.cantidad}</span>
                   </div>
                 ))}
@@ -147,7 +150,7 @@ export function Reportes() {
                     <thead><tr><th>SKU</th><th>Producto</th><th className="num">Unidades</th></tr></thead>
                     <tbody>
                       {vendidos.map((fila) => (
-                        <tr key={fila.sku}><td className="sku">{fila.sku}</td><td>{fila.producto}</td><td className="num">{fila.unidades}</td></tr>
+                        <tr key={fila.sku}><td className="sku">{fila.sku}</td><td>{fila.nombre}</td><td className="num">{fila.unidades}</td></tr>
                       ))}
                     </tbody>
                   </table>
@@ -168,9 +171,9 @@ export function Reportes() {
                       {alertas.map((fila) => (
                         <tr key={fila.sku}>
                           <td className="sku">{fila.sku}</td>
-                          <td>{fila.producto}</td>
+                          <td>{fila.nombre}</td>
                           <td className="num">{fila.disponible}</td>
-                          <td><span className={fila.estado === 'reponer' ? 'etiqueta-alerta' : 'etiqueta-agotado'}>{etiquetaAlerta(fila.estado)}</span></td>
+                          <td><span className={fila.estado === 'stock_bajo' ? 'etiqueta-alerta' : 'etiqueta-agotado'}>{etiquetaAlerta(fila.estado)}</span></td>
                         </tr>
                       ))}
                     </tbody>

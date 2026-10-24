@@ -1,19 +1,23 @@
-import { Controller, Get, NotImplementedException } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/auth/roles.decorator';
+import { AlertasDto, MasVendidosDto, ResumenDto } from './reportes.dto';
+import { ReportesService } from './reportes.service';
 
-/** Transición: indicadores, más vendidos y alertas de stock. */
+/** Indicadores del periodo, más vendidos y alertas de stock (sin fechas: últimos 7 días). */
 @ApiTags('Reportes')
 @ApiBearerAuth()
 @Roles('administrador')
 @Controller('reportes')
 export class ReportesController {
+  constructor(private readonly servicio: ReportesService) {}
+
   @Get('resumen')
-  resumen() { throw new NotImplementedException('Pendiente'); }
+  resumen(@Query() dto: ResumenDto) { return this.servicio.resumen(dto); }
 
   @Get('mas-vendidos')
-  masVendidos() { throw new NotImplementedException('Pendiente'); }
+  masVendidos(@Query() dto: MasVendidosDto) { return this.servicio.masVendidos(dto); }
 
   @Get('alertas-stock')
-  alertas() { throw new NotImplementedException('Pendiente'); }
+  alertas(@Query() dto: AlertasDto) { return this.servicio.alertas(dto); }
 }

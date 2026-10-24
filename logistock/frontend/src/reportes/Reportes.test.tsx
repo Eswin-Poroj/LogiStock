@@ -1,4 +1,5 @@
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../App'
 import { instalarFetch } from '../test/mockFetch'
@@ -7,13 +8,13 @@ import { renderConSesion } from '../test/renderConSesion'
 const resumenOk = {
   pedidos_despachados: 2,
   entregas_a_tiempo_pct: 50,
-  rotacion: 1.5,
-  pedidos_backorder: 1,
-  despachos_por_dia: [{ etiqueta: 'Lun', cantidad: 2 }],
+  rotacion_inventario: 1.5,
+  pedidos_con_backorder: 1,
+  despachos_por_dia: [{ fecha: '2026-10-19', cantidad: 2 }, { fecha: '2026-10-20', cantidad: 0 }],
 }
 
-const vendidosOk = [{ sku: 'FER-0012', producto: 'Cemento gris 42.5 kg', unidades: 4 }]
-const alertasOk = [{ sku: 'PIN-0207', producto: 'Pintura', disponible: 18, estado: 'reponer' }]
+const vendidosOk = [{ sku: 'FER-0012', nombre: 'Cemento gris 42.5 kg', unidades: 4 }]
+const alertasOk = [{ sku: 'PIN-0207', nombre: 'Pintura', disponible: 18, estado: 'stock_bajo' }]
 
 function pendiente() {
   return { status: 501, body: { statusCode: 501, message: 'Pendiente', error: 'Not Implemented' } }
@@ -46,7 +47,7 @@ describe('reportes', () => {
     redes.push(instalarFetch((url) => {
       if (url.endsWith('/bodegas')) return { status: 200, body: [] }
       if (url.endsWith('/reportes/resumen')) return { status: 200, body: resumenOk }
-      if (url.endsWith('/reportes/mas-vendidos')) return { status: 200, body: vendidosOk }
+      if (url.includes('/reportes/mas-vendidos')) return { status: 200, body: vendidosOk }
       if (url.endsWith('/reportes/alertas-stock')) return { status: 200, body: alertasOk }
       return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
     }))
@@ -56,6 +57,7 @@ describe('reportes', () => {
     expect(screen.getByText('1.5x')).toBeInTheDocument()
     expect(screen.getByText('FER-0012')).toBeInTheDocument()
     expect(screen.getByText('Reponer')).toBeInTheDocument()
+    expect(screen.getByText('Lun 19')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Exportar a Excel' })).toBeEnabled()
   })
 
@@ -63,12 +65,31 @@ describe('reportes', () => {
     redes.push(instalarFetch((url) => {
       if (url.endsWith('/bodegas')) return { status: 200, body: [] }
       if (url.endsWith('/reportes/resumen')) return { status: 200, body: { foo: 1 } }
-      if (url.endsWith('/reportes/mas-vendidos')) return { status: 200, body: [] }
+      if (url.includes('/reportes/mas-vendidos')) return { status: 200, body: [] }
       if (url.endsWith('/reportes/alertas-stock')) return { status: 200, body: [] }
       return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
     }))
     renderConSesion(<App />, 'administrador', '/reportes')
     expect(await screen.findByText('El servicio no devolvió el formato esperado.')).toBeInTheDocument()
     expect(screen.queryByText('475')).not.toBeInTheDocument()
+  })
+
+  it('manda bodega y fechas elegidas a la API', async () => {
+    const user = userEvent.setup()
+    const red = instalarFetch((url) => {
+      if (url.endsWith('/bodegas')) return { status: 200, body: [{ id: 'b-1', nombre: 'Bodega Central' }] }
+      if (url.includes('/reportes/resumen')) return { status: 200, body: resumenOk }
+      if (url.includes('/reportes/mas-vendidos')) return { status: 200, body: vendidosOk }
+      if (url.includes('/reportes/alertas-stock')) return { status: 200, body: alertasOk }
+      return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
+    })
+    redes.push(red)
+    renderConSesion(<App />, 'administrador', '/reportes')
+    await screen.findByRole('option', { name: 'Bodega Central' })
+    await user.selectOptions(screen.getByLabelText('Bodega'), 'b-1')
+    const urls = () => red.llamadas.map((llamada) => llamada.url)
+    expect(urls().some((url) => url.endsWith('/reportes/resumen?bodega_id=b-1'))).toBe(true)
+    expect(urls().some((url) => url.endsWith('/reportes/alertas-stock?bodega_id=b-1'))).toBe(true)
+    expect(urls().some((url) => url.endsWith('/reportes/mas-vendidos?limite=5'))).toBe(true)
   })
 })
