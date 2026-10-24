@@ -1,12 +1,13 @@
-import { Link } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 
 export function MenuDespachos() {
   return (
-    <nav aria-label="Despachos">
-      <Link to="/despachos">Listado</Link>
-      <Link to="/despachos/nuevo">Crear</Link>
-      <Link to="/despachos/entrega">Entrega</Link>
-      <Link to="/despachos/iniciar">Iniciar</Link>
+    <nav className="subnav" aria-label="Despachos">
+      <NavLink to="/despachos" end>Planificar</NavLink>
+      <NavLink to="/despachos/seguimiento">Seguimiento</NavLink>
+      <NavLink to="/despachos/iniciar">Iniciar</NavLink>
+      <NavLink to="/despachos/entrega">Entrega</NavLink>
+      <NavLink to="/despachos/flota">Flota</NavLink>
     </nav>
   )
 }

@@ -1,13 +1,19 @@
-import { BadRequestException, ConflictException, HttpException, Injectable, NotFoundException, NotImplementedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UsuarioActual } from '../../common/auth/roles.decorator';
 import { SupabaseService } from '../../common/supabase/supabase.service';
 import { AjusteNuevoDto, EntradaNuevaDto } from './inventario.dto';
 
 export type EstadoStock = 'normal' | 'stock_bajo' | 'agotado';
 
+/** CU-04 A1: el ajuste mueve más que el porcentaje permitido del disponible actual. */
+export function requiereAprobacion(cantidad: number, disponible: number, maximoPct: number): boolean {
+  return Math.abs(cantidad) > (disponible * maximoPct) / 100;
+}
+
 @Injectable()
 export class InventarioService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(private readonly supabase: SupabaseService, private readonly config: ConfigService) {}
 
   /** Existencias por bodega con totales (RF-01). */
   async listar(bodegaId: string, q?: string, estado?: EstadoStock) {
@@ -78,11 +84,67 @@ export class InventarioService {
 
   async registrarAjuste(dto: AjusteNuevoDto, usuario: UsuarioActual) {
     if (dto.tipo === 'danio') return this.registrarDanio(dto, usuario);
+    if (dto.cantidad === 0) throw new BadRequestException('La cantidad del ajuste debe ser distinta de cero');
     const stock = await this.leerStockObligatorio(dto.producto_id, dto.bodega_id);
-    if (dto.cantidad < 0 && stock.disponible + dto.cantidad < 0) {
+    if (stock.disponible + dto.cantidad < 0) {
       throw new ConflictException('El ajuste dejaría el stock negativo');
     }
-    throw new NotImplementedException('Pendiente: Iteración 2');
+    // CU-04 A1: un ajuste mayor al porcentaje permitido del disponible espera la aprobación del administrador.
+    if (usuario.rol !== 'administrador' && requiereAprobacion(dto.cantidad, stock.disponible, this.config.get<number>('ajusteMaxPct', 20))) {
+      const { data, error } = await this.supabase.db.from('ajustes_pendientes').insert({
+        producto_id: dto.producto_id, bodega_id: dto.bodega_id, cantidad: dto.cantidad, motivo: dto.motivo, solicitado_por: usuario.id,
+      }).select('id, producto_id, bodega_id, cantidad, motivo, estado, created_at').single();
+      if (error || !data) throw new BadRequestException(error?.message ?? 'No se pudo registrar la solicitud');
+      return { ...data, pendiente: true };
+    }
+    return this.aplicarAjuste(dto.producto_id, dto.bodega_id, dto.cantidad, dto.motivo, usuario.id);
+  }
+
+  async ajustesPendientes(estado = 'pendiente') {
+    const { data, error } = await this.supabase.db.from('ajustes_pendientes')
+      .select('id, cantidad, motivo, estado, created_at, revisado_at, producto_id, bodega_id, productos(sku, nombre), bodegas(nombre), solicitante:usuarios!ajustes_pendientes_solicitado_por_fkey(nombre), revisor:usuarios!ajustes_pendientes_revisado_por_fkey(nombre)')
+      .eq('estado', estado).order('created_at', { ascending: false }).limit(100);
+    if (error) throw new BadRequestException(error.message);
+    const ids = (data ?? []).map((a: any) => a.producto_id);
+    const { data: stock } = ids.length
+      ? await this.supabase.db.from('stock').select('producto_id, bodega_id, disponible').in('producto_id', ids)
+      : { data: [] as { producto_id: string; bodega_id: string; disponible: number }[] };
+    return (data ?? []).map((a: any) => ({
+      id: a.id, cantidad: a.cantidad, motivo: a.motivo, estado: a.estado, created_at: a.created_at, revisado_at: a.revisado_at,
+      producto_id: a.producto_id, bodega_id: a.bodega_id, sku: a.productos?.sku, nombre: a.productos?.nombre, bodega: a.bodegas?.nombre,
+      solicitado_por: a.solicitante?.nombre ?? '', revisado_por: a.revisor?.nombre ?? null,
+      disponible: (stock ?? []).find((s) => s.producto_id === a.producto_id && s.bodega_id === a.bodega_id)?.disponible ?? 0,
+    }));
+  }
+
+  /** El administrador aprueba: se aplica con la misma regla de no dejar negativo. */
+  async resolverAjuste(id: string, aprobar: boolean, usuario: UsuarioActual) {
+    const { data: solicitud, error } = await this.supabase.db.from('ajustes_pendientes').select('*').eq('id', id).maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!solicitud) throw new NotFoundException('Solicitud no encontrada');
+    if (solicitud.estado !== 'pendiente') throw new ConflictException(`La solicitud ya fue ${solicitud.estado === 'aprobado' ? 'aprobada' : 'rechazada'}`);
+    let movimientoId: string | null = null;
+    if (aprobar) {
+      const mov = await this.aplicarAjuste(solicitud.producto_id, solicitud.bodega_id, solicitud.cantidad, `${solicitud.motivo} · aprobado por ${usuario.nombre}`, solicitud.solicitado_por);
+      movimientoId = (mov as { id: string }).id;
+    }
+    const { data, error: eUpd } = await this.supabase.db.from('ajustes_pendientes').update({
+      estado: aprobar ? 'aprobado' : 'rechazado', revisado_por: usuario.id, revisado_at: new Date().toISOString(), movimiento_id: movimientoId,
+    }).eq('id', id).eq('estado', 'pendiente').select('id, estado').maybeSingle();
+    if (eUpd) throw new BadRequestException(eUpd.message);
+    if (!data) throw new ConflictException('Otro administrador ya resolvió la solicitud');
+    return data;
+  }
+
+  private async aplicarAjuste(productoId: string, bodegaId: string, cantidad: number, motivo: string, usuarioId: string) {
+    // La función repite la condición dentro del UPDATE: si otro movimiento ganó la carrera, devuelve null.
+    const { data, error } = await this.supabase.db.rpc('ajustar_stock', {
+      p_producto: productoId, p_bodega: bodegaId, p_cantidad: cantidad,
+      p_motivo: motivo, p_usuario: usuarioId,
+    });
+    if (error) throw new BadRequestException(error.message);
+    if (!data || !(data as { id?: string }).id) throw new ConflictException('El ajuste dejaría el stock negativo');
+    return data;
   }
 
   private async leerStockObligatorio(productoId: string, bodegaId: string) {
@@ -108,7 +170,7 @@ export class InventarioService {
     if (!actualizado) throw new ConflictException('No hay suficiente disponible para registrar el daño');
     const mov = await this.supabase.db.from('movimientos_stock').insert({
       producto_id: dto.producto_id, bodega_id: dto.bodega_id, tipo: 'danio',
-      cantidad: -unidades, referencia: dto.motivo ?? null, usuario_id: usuario.id,
+      cantidad: -unidades, referencia: dto.motivo, usuario_id: usuario.id,
     }).select('*').single();
     if (mov.error || !mov.data) throw new BadRequestException(mov.error?.message ?? 'No se pudo registrar el movimiento');
     return mov.data;

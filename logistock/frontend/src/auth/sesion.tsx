@@ -1,7 +1,7 @@
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api } from '../api/cliente'
-import type { LoginResponse, Usuario } from '../dominio/tipos'
+import type { Bodega, LoginResponse, Usuario } from '../dominio/tipos'
 
 export const CLAVE_TOKEN = 'logistock.access_token'
 export const CLAVE_USUARIO = 'logistock.usuario'
@@ -28,10 +28,20 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   async function entrar(correo: string, clave: string) {
     const sesion = await api<LoginResponse>('/auth/login', { method: 'POST', body: { correo, clave } })
     const yo = await api<Usuario>('/auth/me', { token: sesion.access_token })
+    let bodega_nombre: string | null = null
+    if (yo.bodega_id) {
+      try {
+        const bodegas = await api<Bodega[]>('/bodegas', { token: sesion.access_token })
+        bodega_nombre = bodegas.find((bodega) => bodega.id === yo.bodega_id)?.nombre ?? null
+      } catch {
+        bodega_nombre = null
+      }
+    }
+    const perfil: Usuario = { ...yo, bodega_nombre }
     sessionStorage.setItem(CLAVE_TOKEN, sesion.access_token)
-    sessionStorage.setItem(CLAVE_USUARIO, JSON.stringify(yo))
+    sessionStorage.setItem(CLAVE_USUARIO, JSON.stringify(perfil))
     setToken(sesion.access_token)
-    setUsuario(yo)
+    setUsuario(perfil)
   }
 
   function salir() {

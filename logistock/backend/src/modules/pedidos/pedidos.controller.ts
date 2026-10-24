@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { Roles, UsuarioActual } from '../../common/auth/roles.decorator';
@@ -32,5 +32,13 @@ export class PedidosController {
   @Post(':id/cancelar')
   cancelar(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() usuario: UsuarioActual) {
     return this.servicio.cancelar(id, usuario);
+  }
+
+  /** Borra un pedido cancelado (su stock ya se liberó). Uno activo primero se cancela (CU-08). */
+  @Roles('asesor_ventas')
+  @HttpCode(204)
+  @Delete(':id')
+  eliminar(@Param('id', ParseUUIDPipe) id: string) {
+    return this.servicio.eliminar(id);
   }
 }

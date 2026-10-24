@@ -1,35 +1,105 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../App'
 import { instalarFetch } from '../test/mockFetch'
 import { renderConSesion } from '../test/renderConSesion'
 import { BODEGA_ID, CONDUCTOR_ID, DESPACHO_ID, PEDIDO_ID, VEHICULO_ID } from '../test/ids'
+import { textoDuracion } from './formatoRuta'
+
+const OTRO_PEDIDO = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const SIN_PICKING = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+
+const pedidosListos = [
+  { id: PEDIDO_ID, numero: 'PED-000231', cliente: 'Ferretería El Tornillo', estado: 'en_preparacion', total: 7484.4, created_at: '2026-10-12T00:00:00.000Z' },
+  { id: OTRO_PEDIDO, numero: 'PED-000230', cliente: 'Depósito San Pedro', estado: 'en_preparacion', total: 100, created_at: '2026-10-12T00:00:00.000Z' },
+]
+
+const rutaOk = {
+  distancia_km: 182,
+  duracion_min: 275,
+  proveedor: 'osrm',
+  paradas: [
+    { orden: 1, pedido_id: PEDIDO_ID, cliente: 'Ferretería El Tornillo', direccion: 'Zona 1', eta: '08:40' },
+    { orden: 2, pedido_id: OTRO_PEDIDO, cliente: 'Depósito San Pedro', direccion: 'Zona 2', eta: '09:25' },
+  ],
+}
 
 function catalogos(url: string) {
   if (url.endsWith('/vehiculos')) return { status: 200, body: [{ id: VEHICULO_ID, nombre: 'Camión 02' }] }
-  if (url.endsWith('/conductores')) return { status: 200, body: [{ id: CONDUCTOR_ID, nombre: 'Luis' }] }
+  if (url.endsWith('/conductores')) return { status: 200, body: [{ id: CONDUCTOR_ID, nombre: 'Luis Hernández' }] }
   if (url.endsWith('/bodegas')) return { status: 200, body: [{ id: BODEGA_ID, nombre: 'Bodega Central' }] }
+  if (url.includes('/pedidos?estado=en_preparacion')) return { status: 200, body: [...pedidosListos, { id: SIN_PICKING, numero: 'PED-000229', cliente: 'Sin picking', estado: 'en_preparacion', total: 5, created_at: '2026-10-12T00:00:00.000Z' }] }
+  if (url.includes('/picking/tareas?estado=completado')) return { status: 200, body: pedidosListos.map((p, i) => ({ id: `t-${i}`, pedido_id: p.id, estado: 'completado', lineas: [] })) }
   return null
 }
 
-async function llenar() {
+async function elegirCatalogos() {
   const user = userEvent.setup()
   await screen.findByRole('option', { name: 'Camión 02' })
-  await screen.findByRole('option', { name: 'Luis' })
+  await screen.findByRole('option', { name: 'Luis Hernández' })
   await screen.findByRole('option', { name: 'Bodega Central' })
   await user.selectOptions(screen.getByLabelText('Vehículo'), VEHICULO_ID)
   await user.selectOptions(screen.getByLabelText('Conductor'), CONDUCTOR_ID)
   await user.selectOptions(screen.getByLabelText('Bodega'), BODEGA_ID)
-  fireEvent.change(screen.getByLabelText('Pedido'), { target: { value: PEDIDO_ID } })
   return user
 }
 
-describe('crear despacho', () => {
+describe('formato de la ruta', () => {
+  it('deja los minutos cortos en minutos', () => {
+    expect(textoDuracion(40)).toBe('40 min')
+  })
+})
+
+describe('planificar despacho', () => {
   const redes: { restaurar(): void }[] = []
   afterEach(() => { for (const red of redes) red.restaurar() })
 
-  it('con 502 no escribe distancia ni ETA y crea el despacho sin eta', async () => {
+  it('exige un pedido marcado y no pide el id en un textbox', async () => {
+    redes.push(instalarFetch((url) => catalogos(url) ?? { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }))
+    renderConSesion(<App />, 'despachador', '/despachos')
+    expect(await screen.findByRole('heading', { name: 'Planificar despacho y ruta' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Asignar despacho' })).toBeDisabled()
+    expect(await screen.findByText('PED-000231')).toBeInTheDocument()
+    expect(screen.queryByText('Sin picking')).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Pedido' })).not.toBeInTheDocument()
+    const user = await elegirCatalogos()
+    expect(screen.getByRole('button', { name: 'Asignar despacho' })).toBeDisabled()
+    await user.click(await screen.findByRole('checkbox', { name: /PED-000231/ }))
+    expect(screen.getByRole('button', { name: 'Asignar despacho' })).toBeEnabled()
+  })
+
+  it('calcula y recalcula la ruta con los pedidos marcados', async () => {
+    const red = instalarFetch((url) => {
+      const catalogo = catalogos(url)
+      if (catalogo) return catalogo
+      if (url.endsWith('/despachos/calcular-ruta')) return { status: 200, body: rutaOk }
+      return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
+    })
+    redes.push(red)
+    renderConSesion(<App />, 'despachador', '/despachos')
+    const user = await elegirCatalogos()
+    await user.click(await screen.findByRole('checkbox', { name: /PED-000231/ }))
+    await user.click(screen.getByRole('checkbox', { name: /PED-000230/ }))
+    await user.click(screen.getByRole('button', { name: 'Calcular ruta' }))
+    expect(await screen.findByText('182 km')).toBeInTheDocument()
+    expect(screen.getByText('4 h 35 min')).toBeInTheDocument()
+    expect(within(screen.getByText('Paradas').parentElement!).getByText('2')).toBeInTheDocument()
+    expect(screen.getByText('Motor: osrm')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Ruta propuesta' })).getByText('Ferretería El Tornillo')).toBeInTheDocument()
+    expect(screen.getByText('08:40')).toBeInTheDocument()
+    expect(screen.queryByText(/valores estimados de ejemplo/)).not.toBeInTheDocument()
+    const primero = red.llamadas.find((llamada) => llamada.url.endsWith('/calcular-ruta'))
+    expect(JSON.parse(String(primero?.init?.body))).toEqual({
+      bodega_id: BODEGA_ID,
+      pedido_ids: [PEDIDO_ID, OTRO_PEDIDO],
+      vehiculo_id: VEHICULO_ID,
+    })
+    await user.click(screen.getByRole('button', { name: 'Recalcular ruta' }))
+    expect(red.llamadas.filter((llamada) => llamada.url.endsWith('/calcular-ruta'))).toHaveLength(2)
+  })
+
+  it('con 502 no escribe distancia ni ETA y asigna sin eta', async () => {
     const red = instalarFetch((url, init) => {
       const catalogo = catalogos(url)
       if (catalogo) return catalogo
@@ -37,20 +107,21 @@ describe('crear despacho', () => {
         return { status: 502, body: { statusCode: 502, message: 'El motor de rutas no respondió', error: 'Bad Gateway' } }
       }
       if (url.endsWith('/despachos') && init?.method === 'POST') {
-        return { status: 201, body: { id: DESPACHO_ID, codigo: 'R-LOCAL', estado: 'planificado', vehiculo: 'Camión 02', conductor: 'Luis', paradas: [{ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', orden: 1, pedido_id: PEDIDO_ID }] } }
+        return { status: 201, body: { id: DESPACHO_ID, codigo: 'R-LOCAL', estado: 'planificado', vehiculo: 'Camión 02', conductor: 'Luis Hernández', paradas: [{ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', orden: 1, pedido_id: PEDIDO_ID }] } }
       }
       return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
     })
     redes.push(red)
-    renderConSesion(<App />, 'despachador', '/despachos/nuevo')
-    const user = await llenar()
+    renderConSesion(<App />, 'despachador', '/despachos')
+    const user = await elegirCatalogos()
+    await user.click(await screen.findByRole('checkbox', { name: /PED-000231/ }))
     await user.click(screen.getByRole('button', { name: 'Calcular ruta' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('El servicio respondió 502: El motor de rutas no respondió')
-    expect(screen.queryByText(/Distancia:/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Duración:/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/ETA /)).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Crear despacho' }))
+    expect(screen.queryByText('182 km')).not.toBeInTheDocument()
+    expect(screen.queryByText('08:40')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Asignar despacho' }))
     expect(await screen.findByText('Despacho R-LOCAL')).toBeInTheDocument()
+    expect(screen.getByText('Estado planificado')).toBeInTheDocument()
     const post = red.llamadas.find((llamada) => llamada.url.endsWith('/despachos') && llamada.init?.method === 'POST')
     expect(JSON.parse(String(post?.init?.body))).toEqual({
       vehiculo_id: VEHICULO_ID,
@@ -60,29 +131,55 @@ describe('crear despacho', () => {
     })
   })
 
-  it('con 200 copia distancia, duración y ETA del cuerpo', async () => {
-    const red = instalarFetch((url) => {
+  it('copia orden y eta de la ruta al asignar', async () => {
+    const red = instalarFetch((url, init) => {
       const catalogo = catalogos(url)
       if (catalogo) return catalogo
-      if (url.endsWith('/despachos/calcular-ruta')) {
-        return {
-          status: 200,
-          body: {
-            distancia_km: 12.5,
-            duracion_min: 40,
-            proveedor: 'osrm',
-            paradas: [{ orden: 1, pedido_id: PEDIDO_ID, cliente: 'Ferretería El Tornillo', direccion: 'Zona 1', eta: '2026-10-12T15:00:00.000Z' }],
-          },
-        }
+      if (url.endsWith('/despachos/calcular-ruta')) return { status: 200, body: rutaOk }
+      if (url.endsWith('/despachos') && init?.method === 'POST') {
+        return { status: 201, body: { id: DESPACHO_ID, codigo: 'R-LOCAL', estado: 'planificado', vehiculo: 'Camión 02', conductor: 'Luis Hernández', paradas: [] } }
       }
       return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
     })
     redes.push(red)
-    renderConSesion(<App />, 'despachador', '/despachos/nuevo')
-    const user = await llenar()
+    renderConSesion(<App />, 'despachador', '/despachos')
+    const user = await elegirCatalogos()
+    await user.click(await screen.findByRole('checkbox', { name: /PED-000231/ }))
+    await user.click(screen.getByRole('checkbox', { name: /PED-000230/ }))
     await user.click(screen.getByRole('button', { name: 'Calcular ruta' }))
-    expect(await screen.findByText('Distancia: 12.5 km')).toBeInTheDocument()
-    expect(screen.getByText('Duración: 40 min')).toBeInTheDocument()
-    expect(screen.getByText('ETA 2026-10-12T15:00:00.000Z')).toBeInTheDocument()
+    await screen.findByText('182 km')
+    await user.click(screen.getByRole('button', { name: 'Asignar despacho' }))
+    expect(await screen.findByText('Despacho R-LOCAL')).toBeInTheDocument()
+    const post = red.llamadas.find((llamada) => llamada.url.endsWith('/despachos') && llamada.init?.method === 'POST')
+    expect(JSON.parse(String(post?.init?.body)).paradas).toEqual([
+      { pedido_id: PEDIDO_ID, orden: 1, eta: '08:40' },
+      { pedido_id: OTRO_PEDIDO, orden: 2, eta: '09:25' },
+    ])
+  })
+
+  it('CU-06 A2 avisa la sobrecarga, sugiere dividir y exige confirmarla', async () => {
+    const red = instalarFetch((url, init) => {
+      if (url.endsWith('/despachos/calcular-ruta')) {
+        return { status: 200, body: { ...rutaOk, carga_kg: 1500, capacidad_kg: 1000, excede_capacidad: true, pedidos_que_no_caben: [],
+          viajes_sugeridos: [{ pedidos: ['PED-000231'], kg: 900 }, { pedidos: ['PED-000230'], kg: 600 }] } }
+      }
+      if (url.endsWith('/despachos') && init?.method === 'POST') return { status: 201, body: { id: DESPACHO_ID, codigo: 'R-15', estado: 'planificado', vehiculo: 'Camión 02', conductor: 'Luis', paradas: [] } }
+      return catalogos(url) ?? { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
+    })
+    redes.push(red)
+    renderConSesion(<App />, 'despachador', '/despachos')
+    const user = await elegirCatalogos()
+    await user.click(await screen.findByLabelText(/PED-000231/))
+    await user.click(screen.getByLabelText(/PED-000230/))
+    await user.click(screen.getByRole('button', { name: 'Calcular ruta' }))
+    const aviso = await screen.findByText(/Sobrecarga:/)
+    expect(aviso.parentElement).toHaveTextContent('1500 kg para un vehículo de 1000 kg (150 %)')
+    expect(screen.getByText('Viaje 1: PED-000231 · 900 kg')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Asignar despacho' })).toBeDisabled()
+    await user.click(screen.getByLabelText(/Asignar de todos modos/))
+    await user.click(screen.getByRole('button', { name: 'Asignar despacho' }))
+    expect(await screen.findByText('Despacho R-15')).toBeInTheDocument()
+    const post = red.llamadas.find((l) => l.url.endsWith('/despachos') && l.init?.method === 'POST')
+    expect(JSON.parse(String(post?.init?.body)).aceptar_exceso).toBe(true)
   })
 })

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsIn, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsIn, IsInt, IsNotEmpty, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 
 export class LineaEntradaDto {
   @IsUUID() producto_id: string;
@@ -17,5 +17,6 @@ export class AjusteNuevoDto {
   @IsUUID() bodega_id: string;
   @IsIn(['ajuste', 'danio']) tipo: 'ajuste' | 'danio';
   @IsInt() cantidad: number;
-  @IsOptional() @IsString() motivo?: string;
+  /** CU-04 paso 2: el motivo es obligatorio en ajuste y en daño. */
+  @IsString() @IsNotEmpty() motivo: string;
 }

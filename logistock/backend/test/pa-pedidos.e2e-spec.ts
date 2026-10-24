@@ -24,6 +24,24 @@ describe('PA pedidos', () => {
   });
   afterAll(async () => { await app.close(); });
 
+  it('PA-01b reserva stock después de POST /auth/login', async () => {
+    const productoId = await crearProducto(admin, `PA01B-${Date.now()}`, 78, semilla.bodegaId, 100);
+    const login = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ correo: semilla.asesor.correo, clave: semilla.asesor.clave });
+    expect(login.status).toBe(201);
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/pedidos')
+      .set('Authorization', `Bearer ${login.body.access_token}`)
+      .send({
+        cliente_id: semilla.clienteId,
+        bodega_id: semilla.bodegaId,
+        lineas: [{ producto_id: productoId, cantidad: 1 }],
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.lineas[0].estado).toBe('reservada');
+  });
+
   it('PA-01 pedido con stock suficiente', async () => {
     const a = await crearProducto(admin, `PA01A-${Date.now()}`, 78, semilla.bodegaId, 100);
     const b = await crearProducto(admin, `PA01B-${Date.now()}`, 20, semilla.bodegaId, 100);

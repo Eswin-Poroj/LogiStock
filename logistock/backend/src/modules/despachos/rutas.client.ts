@@ -7,10 +7,37 @@ export interface RutaCruda {
   duracion_min: number;
   ordenPuntos: number[];
   segundosAcumulados: number[];
+  /** Recorrido por carretera como pares [latitud, longitud]; vacío si el motor no lo dio. */
+  trazo: [number, number][];
 }
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+/** Decodifica la polilínea de Google (precisión 5) a pares [latitud, longitud]. */
+export function decodificarPolilinea(codigo: string): [number, number][] {
+  const puntos: [number, number][] = [];
+  let i = 0;
+  let lat = 0;
+  let lng = 0;
+  while (i < codigo.length) {
+    for (const eje of [0, 1]) {
+      let resultado = 0;
+      let corrimiento = 0;
+      let byte: number;
+      do {
+        byte = codigo.charCodeAt(i++) - 63;
+        resultado |= (byte & 0x1f) << corrimiento;
+        corrimiento += 5;
+      } while (byte >= 0x20);
+      const delta = resultado & 1 ? ~(resultado >> 1) : resultado >> 1;
+      if (eje === 0) lat += delta;
+      else lng += delta;
+    }
+    puntos.push([lat / 1e5, lng / 1e5]);
+  }
+  return puntos;
 }
 
 @Injectable()
@@ -24,7 +51,7 @@ export class RutasClient {
   private async osrm(puntos: { lng: number; lat: number }[]): Promise<RutaCruda | null> {
     const base = this.config.get<string>('rutas.osrmUrl') ?? 'http://127.0.0.1:5000';
     const coords = puntos.map((p) => `${p.lng},${p.lat}`).join(';');
-    const url = `${base}/trip/v1/driving/${coords}?source=first&roundtrip=false&overview=false`;
+    const url = `${base}/trip/v1/driving/${coords}?source=first&roundtrip=false&overview=full&geometries=geojson`;
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
       const body = await res.json();
@@ -48,6 +75,7 @@ export class RutasClient {
         duracion_min: Math.round(trip.duration / 60),
         ordenPuntos,
         segundosAcumulados,
+        trazo: (trip.geometry?.coordinates ?? []).map(([lng, lat]: [number, number]) => [lat, lng] as [number, number]),
       };
     } catch {
       return null;
@@ -84,6 +112,7 @@ export class RutasClient {
         duracion_min: Math.round(acc / 60),
         ordenPuntos,
         segundosAcumulados,
+        trazo: route.overview_polyline?.points ? decodificarPolilinea(route.overview_polyline.points) : [],
       };
     } catch {
       return null;

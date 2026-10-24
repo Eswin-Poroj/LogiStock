@@ -4,7 +4,7 @@ export const API_BASE_LOCAL = 'http://127.0.0.1:3000/api/v1'
 const PROYECTO_ALOJADO = 'lrjoozqkydvzptuzskjz'
 
 export interface Solicitud {
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   token?: string | null
   body?: unknown
 }

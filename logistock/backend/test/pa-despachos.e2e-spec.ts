@@ -3,7 +3,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Client } from 'pg';
 import request from 'supertest';
 import { assertEntornoLocal, crearApp } from './helpers/local';
-import { crearProducto, sembrar, Semilla } from './helpers/semilla';
+import { crearProducto, leerStock, pickingCompletado, sembrar, Semilla } from './helpers/semilla';
 
 jest.setTimeout(30000);
 
@@ -130,6 +130,9 @@ describe('PA despachos', () => {
       expect(res.status).toBe(200);
       expect(['osrm', 'google']).toContain(res.body.proveedor);
       expect(res.body.paradas).toHaveLength(4);
+      expect(typeof res.body.origen.latitud).toBe('number');
+      for (const p of res.body.paradas) expect(typeof p.latitud).toBe('number');
+      expect(Array.isArray(res.body.trazo)).toBe(true);
       const etas = res.body.paradas.map((p: { eta: string }) => Date.parse(p.eta));
       for (let i = 1; i < etas.length; i++) expect(etas[i]).toBeGreaterThan(etas[i - 1]);
     });
@@ -159,6 +162,7 @@ describe('PA despachos', () => {
         .set('Authorization', `Bearer ${semilla.asesor.token}`)
         .send({ cliente_id: semilla.clienteId, bodega_id: semilla.bodegaId, lineas: [{ producto_id: productoId, cantidad: 1 }] });
       expect(pedido.status).toBe(201);
+      await pickingCompletado(admin, pedido.body.id);
       const cuerpo = {
         vehiculo_id: semilla.vehiculoId, conductor_id: semilla.conductorId, bodega_id: semilla.bodegaId,
         paradas: [{ pedido_id: pedido.body.id, orden: 1 }],
@@ -189,6 +193,7 @@ describe('PA despachos', () => {
           .send({ cliente_id: semilla.clienteId, bodega_id: semilla.bodegaId, lineas: [{ producto_id: productoId, cantidad: 1 }] });
         expect(res.status).toBe(201);
         pedidos.push(res.body.id as string);
+        await pickingCompletado(admin, res.body.id);
       }
       const despacho = await request(app.getHttpServer()).post('/api/v1/despachos')
         .set('Authorization', `Bearer ${semilla.despachador.token}`)
@@ -197,7 +202,22 @@ describe('PA despachos', () => {
           paradas: [{ pedido_id: pedidos[0], orden: 1 }, { pedido_id: pedidos[1], orden: 2 }],
         });
       expect(despacho.status).toBe(201);
+      // CU-06: el reservado sale del inventario al asignar.
+      expect(await leerStock(admin, a, semilla.bodegaId)).toMatchObject({ disponible: 99, reservado: 0 });
       const paradas = [...despacho.body.paradas].sort((x, y) => x.orden - y.orden);
+      const antes = await request(app.getHttpServer())
+        .post(`/api/v1/despachos/${despacho.body.id}/paradas/${paradas[0].id}/entregar`)
+        .set('Authorization', `Bearer ${semilla.despachador.token}`).send({});
+      expect(antes.status).toBe(409);
+      const inicio = await request(app.getHttpServer())
+        .post(`/api/v1/despachos/${despacho.body.id}/iniciar`)
+        .set('Authorization', `Bearer ${semilla.despachador.token}`).send({});
+      expect(inicio.status).toBe(200);
+      expect(inicio.body.estado).toBe('en_ruta');
+      const otraVez = await request(app.getHttpServer())
+        .post(`/api/v1/despachos/${despacho.body.id}/iniciar`)
+        .set('Authorization', `Bearer ${semilla.despachador.token}`).send({});
+      expect(otraVez.status).toBe(409);
       const primera = await request(app.getHttpServer())
         .post(`/api/v1/despachos/${despacho.body.id}/paradas/${paradas[0].id}/entregar`)
         .set('Authorization', `Bearer ${semilla.despachador.token}`).send({});
@@ -213,6 +233,30 @@ describe('PA despachos', () => {
       for (const id of pedidos) {
         const ped = await admin.from('pedidos').select('estado').eq('id', id).single();
         expect(ped.data!.estado).toBe('entregado');
+      }
+    });
+
+    it('CU-06 rechaza un pedido sin picking completado', async () => {
+      const productoId = await crearProducto(admin, `CU06-${Date.now()}`, 10, semilla.bodegaId, 10);
+      const pedido = await request(app.getHttpServer()).post('/api/v1/pedidos')
+        .set('Authorization', `Bearer ${semilla.asesor.token}`)
+        .send({ cliente_id: semilla.clienteId, bodega_id: semilla.bodegaId, lineas: [{ producto_id: productoId, cantidad: 1 }] });
+      expect(pedido.status).toBe(201);
+      const res = await request(app.getHttpServer()).post('/api/v1/despachos')
+        .set('Authorization', `Bearer ${semilla.despachador.token}`)
+        .send({ vehiculo_id: semilla.vehiculoId, conductor_id: semilla.conductorId, bodega_id: semilla.bodegaId, paradas: [{ pedido_id: pedido.body.id, orden: 1 }] });
+      expect(res.status).toBe(409);
+      expect(JSON.stringify(res.body)).toContain('no tiene el picking completado');
+    });
+
+    it('GET /despachos lista con estado y paradas', async () => {
+      const res = await request(app.getHttpServer()).get('/api/v1/despachos?estado=finalizado')
+        .set('Authorization', `Bearer ${semilla.despachador.token}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      for (const d of res.body) {
+        expect(d.estado).toBe('finalizado');
+        expect(Array.isArray(d.paradas)).toBe(true);
       }
     });
   });

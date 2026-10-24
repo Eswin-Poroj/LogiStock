@@ -12,6 +12,8 @@ import { PedidosModule } from './modules/pedidos/pedidos.module';
 import { PickingModule } from './modules/picking/picking.module';
 import { DespachosModule } from './modules/despachos/despachos.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
+import { CotizacionesModule } from './modules/cotizaciones/cotizaciones.module';
+import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 
 function redisConnection() {
   const u = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
@@ -32,6 +34,8 @@ function redisConnection() {
     PickingModule,
     DespachosModule,
     ReportesModule,
+    CotizacionesModule,
+    NotificacionesModule,
   ],
 })
 export class AppModule {}

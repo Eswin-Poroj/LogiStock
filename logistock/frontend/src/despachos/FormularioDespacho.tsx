@@ -1,11 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
 import { useListado } from '../api/useListado'
 import { useSesion } from '../auth/sesion'
-import type { Bodega, Conductor, Despacho, DespachoNuevo, Ruta, RutaSolicitud, Vehiculo } from '../dominio/tipos'
+import type { Bodega, Conductor, Despacho, DespachoNuevo, PedidoResumen, Ruta, RutaSolicitud, TareaPicking, Vehiculo } from '../dominio/tipos'
 import { esUuid } from '../dominio/uuid'
 import { MenuDespachos } from './MenuDespachos'
+import { quetzales } from '../dominio/quetzales'
+import { Encabezado } from '../navegacion/Encabezado'
+import { MapaRuta } from './MapaRuta'
+import { horaDe, textoDuracion } from './formatoRuta'
 
 export function FormularioDespacho() {
   const { token } = useSesion()
@@ -15,18 +20,45 @@ export function FormularioDespacho() {
   const [vehiculoId, setVehiculoId] = useState('')
   const [conductorId, setConductorId] = useState('')
   const [bodegaId, setBodegaId] = useState('')
-  const [pedidoId, setPedidoId] = useState('')
+  const [pedidos, setPedidos] = useState<PedidoResumen[]>([])
+  const [marcados, setMarcados] = useState<string[]>([])
   const [ruta, setRuta] = useState<Ruta | null>(null)
   const [despacho, setDespacho] = useState<Despacho | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
+  const [aceptaExceso, setAceptaExceso] = useState(false)
   const listaError = vehiculos.error ?? conductores.error ?? bodegas.error
-  const listo = esUuid(vehiculoId) && esUuid(conductorId) && esUuid(bodegaId) && esUuid(pedidoId)
+  const excede = ruta?.excede_capacidad === true
+  const listo = esUuid(vehiculoId) && esUuid(conductorId) && esUuid(bodegaId) && marcados.length > 0 && (!excede || aceptaExceso)
+
+  useEffect(() => {
+    if (!token) return
+    let vivo = true
+    // CU-06: listos = en preparación y con el picking completado.
+    Promise.all([
+      api<PedidoResumen[]>('/pedidos?estado=en_preparacion&limite=100', { token }),
+      api<TareaPicking[]>('/picking/tareas?estado=completado', { token }),
+    ])
+      .then(([filas, tareas]) => {
+        if (!vivo) return
+        const completados = new Set(tareas.map((tarea) => tarea.pedido_id))
+        setPedidos(filas.filter((fila) => completados.has(fila.id)))
+      })
+      .catch((fallo: unknown) => { if (vivo && fallo instanceof ApiError) setError(fallo) })
+    return () => { vivo = false }
+  }, [token])
+
+  function alternar(id: string) {
+    setRuta(null)
+    setMarcados((actual) => actual.includes(id) ? actual.filter((fila) => fila !== id) : [...actual, id])
+  }
 
   async function calcular() {
-    if (!token || !esUuid(bodegaId) || !esUuid(pedidoId)) return
+    if (!token || !esUuid(bodegaId) || marcados.length === 0) return
     setError(null)
     setRuta(null)
-    const body: RutaSolicitud = { bodega_id: bodegaId, pedido_ids: [pedidoId] }
+    setAceptaExceso(false)
+    const body: RutaSolicitud = { bodega_id: bodegaId, pedido_ids: marcados }
+    if (esUuid(vehiculoId)) body.vehiculo_id = vehiculoId
     try {
       setRuta(await api<Ruta>('/despachos/calcular-ruta', { method: 'POST', token, body }))
     } catch (fallo) {
@@ -34,57 +66,152 @@ export function FormularioDespacho() {
     }
   }
 
-  async function crear() {
+  async function asignar() {
     if (!token || !listo) return
     setError(null)
-    const eta = ruta?.paradas.find((parada) => parada.pedido_id === pedidoId)?.eta
-    const parada: { pedido_id: string; orden: number; eta?: string } = { pedido_id: pedidoId, orden: 1 }
-    if (eta) parada.eta = eta
-    const body: DespachoNuevo = { vehiculo_id: vehiculoId, conductor_id: conductorId, bodega_id: bodegaId, paradas: [parada] }
+    const paradas = ruta
+      ? ruta.paradas.map((parada) => {
+          const fila: { pedido_id: string; orden: number; eta?: string } = { pedido_id: parada.pedido_id, orden: parada.orden }
+          if (parada.eta) fila.eta = parada.eta
+          return fila
+        })
+      : marcados.map((pedidoId, indice) => ({ pedido_id: pedidoId, orden: indice + 1 }))
+    const body: DespachoNuevo = { vehiculo_id: vehiculoId, conductor_id: conductorId, bodega_id: bodegaId, paradas }
+    if (ruta) {
+      body.distancia_km = ruta.distancia_km
+      body.duracion_min = ruta.duracion_min
+    }
+    if (aceptaExceso) body.aceptar_exceso = true
     try {
-      setDespacho(await api<Despacho>('/despachos', { method: 'POST', token, body }))
+      const creado = await api<Despacho>('/despachos', { method: 'POST', token, body })
+      setDespacho(creado)
+      const asignados = new Set(creado.paradas.map((parada) => parada.pedido_id))
+      setPedidos((actuales) => actuales.filter((pedido) => !asignados.has(pedido.id)))
+      setMarcados([])
+      setRuta(null)
     } catch (fallo) {
       if (fallo instanceof ApiError) setError(fallo)
     }
   }
 
   return (
-    <section>
-      <MenuDespachos />
-      <h1>Crear despacho</h1>
+    <section className="pantalla">
+      <Encabezado titulo="Planificar despacho y ruta">
+        <MenuDespachos />
+      </Encabezado>
       {(listaError || error) && <AvisoApi error={(listaError ?? error) as ApiError} />}
-      <label>
-        Vehículo
-        <select value={vehiculoId} onChange={(evento) => setVehiculoId(evento.target.value)}>
-          <option value="">Selecciona</option>
-          {vehiculos.items.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}</option>)}
-        </select>
-      </label>
-      <label>
-        Conductor
-        <select value={conductorId} onChange={(evento) => setConductorId(evento.target.value)}>
-          <option value="">Selecciona</option>
-          {conductores.items.map((conductor) => <option key={conductor.id} value={conductor.id}>{conductor.nombre}</option>)}
-        </select>
-      </label>
-      <label>
-        Bodega
-        <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
-          <option value="">Selecciona</option>
-          {bodegas.items.map((bodega) => <option key={bodega.id} value={bodega.id}>{bodega.nombre}</option>)}
-        </select>
-      </label>
-      <label>
-        Pedido
-        <input value={pedidoId} onChange={(evento) => setPedidoId(evento.target.value)} />
-      </label>
-      <button type="button" onClick={() => void calcular()}>Calcular ruta</button>
-      <button type="button" disabled={!listo} onClick={() => void crear()}>Crear despacho</button>
-      {ruta && <p>Distancia: {ruta.distancia_km} km</p>}
-      {ruta && <p>Duración: {ruta.duracion_min} min</p>}
-      {ruta?.paradas.map((parada) => <p key={parada.pedido_id}>ETA {parada.eta}</p>)}
-      {despacho && <p>Despacho {despacho.codigo}</p>}
-      {despacho && <p>Estado {despacho.estado}</p>}
+      <div className="despacho-rejilla">
+        <div className="despacho-izquierda">
+          <section className="tarjeta" aria-labelledby="titulo-listos">
+            <h2 id="titulo-listos">Pedidos listos para despacho</h2>
+            {pedidos.length === 0 && <p className="nota">No hay pedidos con el picking completado.</p>}
+            <div className="lista-marcas">
+              {pedidos.map((pedido) => (
+                <label key={pedido.id}>
+                  <input type="checkbox" checked={marcados.includes(pedido.id)} onChange={() => alternar(pedido.id)} />
+                  <span>
+                    <span className="numero">{pedido.numero}</span> {pedido.cliente}
+                    <small>{quetzales(pedido.total)}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </section>
+          <section className="tarjeta" aria-labelledby="titulo-vehiculo">
+            <h2 id="titulo-vehiculo">Vehículo y conductor</h2>
+            <div className="campos-despacho">
+              <label>
+                Bodega
+                <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
+                  <option value="">Selecciona</option>
+                  {bodegas.items.map((bodega) => <option key={bodega.id} value={bodega.id}>{bodega.nombre}</option>)}
+                </select>
+              </label>
+              <label>
+                Vehículo
+                <select value={vehiculoId} onChange={(evento) => { setVehiculoId(evento.target.value); setRuta(null) }}>
+                  <option value="">Selecciona</option>
+                  {vehiculos.items.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}</option>)}
+                </select>
+              </label>
+              <label>
+                Conductor
+                <select value={conductorId} onChange={(evento) => setConductorId(evento.target.value)}>
+                  <option value="">Selecciona</option>
+                  {conductores.items.map((conductor) => <option key={conductor.id} value={conductor.id}>{conductor.nombre}</option>)}
+                </select>
+              </label>
+              <button type="button" disabled={!esUuid(bodegaId) || marcados.length === 0} onClick={() => void calcular()}>Calcular ruta</button>
+            </div>
+          </section>
+        </div>
+        <div className="despacho-derecha">
+          <section className="tarjeta ruta-panel" aria-label="Ruta propuesta">
+            <div className="tarjeta-titulo">
+              <h2>Ruta propuesta</h2>
+              <button type="button" disabled={!esUuid(bodegaId) || marcados.length === 0} onClick={() => void calcular()}>Recalcular ruta</button>
+            </div>
+            <MapaRuta ruta={ruta} />
+            {ruta && (
+              <>
+                <div className="metricas-ruta">
+                  <div><span>Distancia</span><strong>{ruta.distancia_km} km</strong></div>
+                  <div><span>Duración</span><strong>{textoDuracion(ruta.duracion_min)}</strong></div>
+                  <div><span>Paradas</span><strong>{ruta.paradas.length}</strong></div>
+                </div>
+                <p className="nota">Motor: {ruta.proveedor}</p>
+                {ruta.carga_kg !== undefined && ruta.capacidad_kg !== undefined && (
+                  <AvisoCarga ruta={ruta} acepta={aceptaExceso} onAcepta={setAceptaExceso} />
+                )}
+                <h3>Orden de entrega</h3>
+                <ol className="orden-entrega">
+                  {ruta.paradas.map((parada) => (
+                    <li className="parada" key={parada.pedido_id}>
+                      <span className="orden">{parada.orden}</span>
+                      <span><strong>{parada.cliente}</strong><small>{parada.direccion}</small></span>
+                      <span className="hora">{horaDe(parada.eta)}</span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
+          </section>
+          <div className="acciones-despacho">
+            <button type="button" className="boton-primario" disabled={!listo} onClick={() => void asignar()}>Asignar despacho</button>
+          </div>
+          {despacho && <p className="nota-ok">Despacho {despacho.codigo}</p>}
+          {despacho && <p>Estado {despacho.estado}</p>}
+          {despacho && <p>Los pedidos de las paradas pasan a Despachado. <Link to={`/despachos/seguimiento`}>Ver en seguimiento</Link></p>}
+        </div>
+      </div>
     </section>
+  )
+}
+
+/** CU-06 A2: el sistema advierte la sobrecarga y sugiere cómo dividir el viaje. */
+function AvisoCarga({ ruta, acepta, onAcepta }: { ruta: Ruta; acepta: boolean; onAcepta: (valor: boolean) => void }) {
+  const carga = ruta.carga_kg ?? 0
+  const capacidad = ruta.capacidad_kg ?? 0
+  const uso = capacidad > 0 ? Math.round((carga / capacidad) * 100) : 0
+  if (!ruta.excede_capacidad) {
+    return <p className="nota">Carga {carga} kg de {capacidad} kg ({uso} % del vehículo).</p>
+  }
+  return (
+    <div className="aviso-carga" role="alert">
+      <p><strong>Sobrecarga:</strong> {carga} kg para un vehículo de {capacidad} kg ({uso} %).</p>
+      {(ruta.pedidos_que_no_caben ?? []).length > 0
+        ? <p>{ruta.pedidos_que_no_caben!.join(', ')} por sí solo no cabe en este vehículo: elige uno de más capacidad.</p>
+        : (
+          <>
+            <p>Sugerencia: dividir en {ruta.viajes_sugeridos?.length} viajes.</p>
+            <ol>
+              {(ruta.viajes_sugeridos ?? []).map((viaje, i) => <li key={i}>Viaje {i + 1}: {viaje.pedidos.join(', ')} · {viaje.kg} kg</li>)}
+            </ol>
+          </>
+        )}
+      <label className="campo-casilla">
+        <input type="checkbox" checked={acepta} onChange={(e) => onAcepta(e.target.checked)} /> Asignar de todos modos (confirmo la sobrecarga)
+      </label>
+    </div>
   )
 }

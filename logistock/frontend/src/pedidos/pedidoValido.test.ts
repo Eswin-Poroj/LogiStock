@@ -1,14 +1,28 @@
 import { describe, expect, it } from 'vitest'
+import { quetzales } from '../dominio/quetzales'
 import { BODEGA_ID, CLIENTE_ID, PRODUCTO_ID } from '../test/ids'
-import { lineaSinStock, pedidoValido } from './pedidoValido'
-import type { PedidoFormulario } from './pedidoValido'
+import {
+  IVA_PORCENTAJE,
+  ajustarADisponible,
+  dejarBackorder,
+  lineaReservable,
+  lineaSinStock,
+  pedidoValido,
+  politicaDelFormulario,
+  requiereAutorizacion,
+  resumenPedido,
+} from './pedidoValido'
+import type { LineaCotizacion } from './pedidoValido'
 
-function pedido(parcial: Partial<PedidoFormulario> = {}): PedidoFormulario {
+function linea(parcial: Partial<LineaCotizacion> = {}): LineaCotizacion {
   return {
-    cliente_id: CLIENTE_ID,
-    bodega_id: BODEGA_ID,
-    politica_faltantes: 'rechazar',
-    lineas: [{ producto_id: PRODUCTO_ID, cantidad: 1, disponible: 10 }],
+    producto_id: PRODUCTO_ID,
+    sku: 'FER-0012',
+    nombre: 'Cemento gris 42.5 kg',
+    cantidad: 1,
+    disponible: 10,
+    precio_unitario: 78,
+    resolucion: 'pendiente',
     ...parcial,
   }
 }
@@ -21,32 +35,82 @@ describe('pedido válido', () => {
   })
 
   it('rechaza el formulario vacío, la cantidad cero y el disponible desconocido', () => {
-    expect(pedidoValido(pedido({ cliente_id: '', lineas: [] }))).toBe(false)
-    expect(pedidoValido(pedido({ lineas: [{ producto_id: PRODUCTO_ID, cantidad: 0, disponible: 10 }] }))).toBe(false)
-    expect(pedidoValido(pedido({ lineas: [{ producto_id: PRODUCTO_ID, cantidad: 1, disponible: null }] }))).toBe(false)
+    expect(pedidoValido({ cliente_id: '', bodega_id: BODEGA_ID, lineas: [] })).toBe(false)
+    expect(pedidoValido({ cliente_id: CLIENTE_ID, bodega_id: BODEGA_ID, lineas: [linea({ cantidad: 0 })] })).toBe(false)
+    expect(pedidoValido({ cliente_id: CLIENTE_ID, bodega_id: BODEGA_ID, lineas: [linea({ disponible: null })] })).toBe(false)
   })
 
-  it('con rechazar, una línea sin stock deja el pedido inválido', () => {
-    expect(pedidoValido(pedido({ lineas: [{ producto_id: PRODUCTO_ID, cantidad: 1, disponible: 0 }] }))).toBe(false)
+  it('deja inválida una línea corta que sigue pendiente', () => {
+    expect(pedidoValido({ cliente_id: CLIENTE_ID, bodega_id: BODEGA_ID, lineas: [linea({ disponible: 0 })] })).toBe(false)
   })
 
-  it('con backorder, la misma línea es válida', () => {
-    expect(pedidoValido(pedido({
-      politica_faltantes: 'backorder',
-      lineas: [{ producto_id: PRODUCTO_ID, cantidad: 1, disponible: 0 }],
-    }))).toBe(true)
+  it('acepta esa línea cuando su resolución es backorder', () => {
+    expect(pedidoValido({
+      cliente_id: CLIENTE_ID,
+      bodega_id: BODEGA_ID,
+      lineas: [linea({ disponible: 0, resolucion: 'backorder' })],
+    })).toBe(true)
   })
 
-  it('exige stock en todas las líneas si la política es rechazar', () => {
-    expect(pedidoValido(pedido({
-      lineas: [
-        { producto_id: PRODUCTO_ID, cantidad: 1, disponible: 10 },
-        { producto_id: PRODUCTO_ID, cantidad: 5, disponible: 3 },
-      ],
-    }))).toBe(false)
+  it('exige stock en todas las líneas si ninguna está en backorder', () => {
+    expect(pedidoValido({
+      cliente_id: CLIENTE_ID,
+      bodega_id: BODEGA_ID,
+      lineas: [linea(), linea({ cantidad: 5, disponible: 3 })],
+    })).toBe(false)
   })
 
   it('acepta una línea cubierta', () => {
-    expect(pedidoValido(pedido())).toBe(true)
+    expect(pedidoValido({ cliente_id: CLIENTE_ID, bodega_id: BODEGA_ID, lineas: [linea()] })).toBe(true)
+  })
+})
+
+describe('cotización del mockup', () => {
+  it('deja fuera del total la línea sin stock', () => {
+    const corta = linea({ sku: 'PIN-0207', nombre: 'Pintura látex', cantidad: 60, disponible: 18, precio_unitario: 215 })
+    const sana = linea({ cantidad: 40, disponible: 312, precio_unitario: 78 })
+    expect(lineaReservable(corta)).toBe(false)
+    expect(lineaReservable(sana)).toBe(true)
+    const resumen = resumenPedido([sana, corta])
+    expect(resumen.confirmadas).toBe(1)
+    expect(resumen.totalLineas).toBe(2)
+    expect(resumen.subtotal).toBe(3120)
+    expect(resumen.iva).toBe(374.4)
+    expect(resumen.total).toBe(3494.4)
+    expect(IVA_PORCENTAJE).toBe(12)
+  })
+
+  it('ajustar a disponible deja la línea reservable y no baja de 1', () => {
+    const ajustada = ajustarADisponible(linea({ sku: 'PIN-0207', cantidad: 60, disponible: 18, precio_unitario: 215 }))
+    expect(ajustada.cantidad).toBe(18)
+    expect(ajustada.resolucion).toBe('ajustada')
+    expect(lineaReservable(ajustada)).toBe(true)
+    const agotada = ajustarADisponible(linea({ disponible: 0, cantidad: 4 }))
+    expect(agotada.cantidad).toBe(4)
+    expect(agotada.resolucion).toBe('pendiente')
+  })
+
+  it('el backorder de una línea pone la política del pedido en backorder', () => {
+    const back = dejarBackorder(linea({ disponible: 0, cantidad: 1 }))
+    expect(back.resolucion).toBe('backorder')
+    expect(politicaDelFormulario([back])).toBe('backorder')
+    expect(resumenPedido([back]).subtotal).toBe(0)
+    expect(politicaDelFormulario([linea()])).toBe('rechazar')
+  })
+
+  it('formatea quetzales como el mockup', () => {
+    expect(quetzales(7484.4)).toBe('Q 7,484.40')
+    expect(quetzales(78)).toBe('Q 78.00')
+  })
+
+  it('aplica el descuento antes del IVA', () => {
+    const linea = { producto_id: '44444444-4444-4444-8444-444444444444', sku: 'A', nombre: 'A', cantidad: 2, disponible: 10, precio_unitario: 100, resolucion: 'pendiente' as const }
+    expect(resumenPedido([linea], 15)).toMatchObject({ subtotal: 200, descuento: 30, iva: 20.4, total: 190.4 })
+  })
+
+  it('pide supervisor solo sobre el máximo y si no es administrador', () => {
+    expect(requiereAutorizacion(10, 10, 'asesor_ventas')).toBe(false)
+    expect(requiereAutorizacion(15, 10, 'asesor_ventas')).toBe(true)
+    expect(requiereAutorizacion(15, 10, 'administrador')).toBe(false)
   })
 })

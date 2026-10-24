@@ -14,6 +14,7 @@ export interface Usuario {
   nombre: string
   rol: Rol
   bodega_id: string | null
+  bodega_nombre?: string | null
 }
 
 export interface LoginResponse {
@@ -54,6 +55,19 @@ export interface Producto {
   precio_unitario: number
   stock_minimo: number
   activo: boolean
+  categoria?: string | null
+  peso_kg?: number
+}
+
+export interface Proveedor {
+  id: string
+  nombre: string
+  nit?: string | null
+  telefono?: string | null
+  correo?: string | null
+  direccion?: string | null
+  latitud?: number | null
+  longitud?: number | null
 }
 
 export interface Bodega {
@@ -62,6 +76,7 @@ export interface Bodega {
   direccion?: string
   latitud?: number
   longitud?: number
+  activa?: boolean
 }
 
 export interface Vehiculo {
@@ -69,12 +84,14 @@ export interface Vehiculo {
   nombre: string
   placa?: string
   capacidad_kg?: number
+  activo?: boolean
 }
 
 export interface Conductor {
   id: string
   nombre: string
-  telefono?: string
+  telefono?: string | null
+  activo?: boolean
 }
 
 export type EstadoStock = 'normal' | 'stock_bajo' | 'agotado'
@@ -138,6 +155,9 @@ export interface PedidoNuevo {
   bodega_id: string
   politica_faltantes: PoliticaFaltantes
   lineas: { producto_id: string; cantidad: number }[]
+  cotizacion_id?: string
+  descuento_pct?: number
+  autorizacion?: { correo: string; clave: string }
 }
 
 export interface LineaPedido {
@@ -161,7 +181,22 @@ export interface Pedido {
   bodega_id: string
   subtotal: number
   iva: number
+  descuento_pct?: number
+  descuento?: number
+  autorizado_por?: string | null
+  estado_picking?: EstadoPicking | null
   lineas: LineaPedido[]
+}
+
+export interface PedidoResumen {
+  id: string
+  numero: string
+  cliente: string
+  estado: EstadoPedido
+  total: number
+  created_at: string
+  lineas?: number
+  despacho?: { codigo: string; vehiculo: string } | null
 }
 
 export interface LineaTareaPicking {
@@ -179,6 +214,8 @@ export interface TareaPicking {
   estado: EstadoPicking
   numero_pedido?: string
   cliente?: string
+  total?: number
+  estado_pedido?: EstadoPedido
   operario?: string | null
   lineas: LineaTareaPicking[]
 }
@@ -196,6 +233,16 @@ export interface CompletarPicking {
 export interface RutaSolicitud {
   bodega_id: string
   pedido_ids: string[]
+  vehiculo_id?: string
+}
+
+/** CU-06 A2: carga del viaje frente al vehículo; viene en calcular-ruta y en el 409 de asignar. */
+export interface CapacidadViaje {
+  carga_kg: number
+  capacidad_kg: number
+  excede_capacidad: boolean
+  viajes_sugeridos: { pedidos: string[]; kg: number }[]
+  pedidos_que_no_caben: string[]
 }
 
 export interface ParadaRuta {
@@ -203,27 +250,50 @@ export interface ParadaRuta {
   pedido_id: string
   cliente: string
   direccion: string
+  latitud?: number
+  longitud?: number
   eta: string
+}
+
+export interface OrigenRuta {
+  nombre: string
+  direccion: string
+  latitud: number
+  longitud: number
 }
 
 export interface Ruta {
   distancia_km: number
   duracion_min: number
   proveedor: 'osrm' | 'google'
+  origen?: OrigenRuta
   paradas: ParadaRuta[]
+  /** Recorrido por carretera como pares [latitud, longitud]. */
+  trazo?: [number, number][]
+  carga_kg?: number
+  capacidad_kg?: number
+  excede_capacidad?: boolean
+  viajes_sugeridos?: CapacidadViaje['viajes_sugeridos']
+  pedidos_que_no_caben?: string[]
 }
 
 export interface DespachoNuevo {
   vehiculo_id: string
   conductor_id: string
   bodega_id: string
+  distancia_km?: number
+  duracion_min?: number
   paradas: { pedido_id: string; orden: number; eta?: string }[]
+  aceptar_exceso?: boolean
 }
 
 export interface ParadaDespacho {
   id: string
   orden: number
   pedido_id: string
+  numero_pedido?: string
+  cliente?: string
+  direccion?: string
   eta?: string
   entregada_at?: string
 }
@@ -233,8 +303,40 @@ export interface Despacho {
   codigo: string
   estado: EstadoDespacho
   vehiculo: string
+  placa?: string
   conductor: string
   distancia_km?: number
   duracion_min?: number
+  salida_prevista?: string
+  created_at?: string
   paradas: ParadaDespacho[]
+}
+
+export interface Sustituto {
+  producto_id: string
+  sku: string
+  nombre: string
+  precio_unitario: number
+  disponible: number
+}
+
+export interface CotizacionResumen {
+  id: string
+  numero: string
+  cliente: string
+  total: number
+  created_at: string
+  pedido_id: string | null
+}
+
+export interface Cotizacion extends CotizacionResumen {
+  cliente_id: string
+  bodega_id: string
+  cliente_nit?: string
+  cliente_direccion?: string
+  bodega?: string
+  asesor?: string
+  subtotal: number
+  iva: number
+  lineas: { producto_id: string; sku: string; nombre: string; cantidad: number; precio_unitario: number; subtotal: number }[]
 }

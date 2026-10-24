@@ -115,3 +115,12 @@ export async function leerStock(admin: SupabaseClient, productoId: string, bodeg
   if (error || !data) throw error ?? new Error('sin stock');
   return { disponible: Number(data.disponible), reservado: Number(data.reservado), danado: Number(data.danado) };
 }
+
+/** Deja el pedido como lo pide CU-06: en preparación y con su tarea de picking completada. */
+export async function pickingCompletado(admin: SupabaseClient, pedidoId: string): Promise<void> {
+  const tarea = await admin.from('tareas_picking')
+    .upsert({ pedido_id: pedidoId, estado: 'completado', completada_at: new Date().toISOString() }, { onConflict: 'pedido_id' });
+  if (tarea.error) throw tarea.error;
+  const pedido = await admin.from('pedidos').update({ estado: 'en_preparacion' }).eq('id', pedidoId).eq('estado', 'creado');
+  if (pedido.error) throw pedido.error;
+}

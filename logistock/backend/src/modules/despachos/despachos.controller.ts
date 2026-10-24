@@ -1,13 +1,13 @@
-import { Body, Controller, Get, HttpCode, NotImplementedException, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { Roles, UsuarioActual } from '../../common/auth/roles.decorator';
-import { DespachoNuevoDto, RutaSolicitudDto } from './despachos.dto';
+import { DespachoNuevoDto, FiltroDespachosDto, RutaSolicitudDto } from './despachos.dto';
 import { DespachosService } from './despachos.service';
 
 /**
- * Iteración 3: cálculo de ruta con OSRM (respaldo Google Directions), creación del despacho
- * y confirmación de entregas.
+ * CU-06 y CU-07: cálculo de ruta con OSRM (respaldo Google Directions), asignación del despacho,
+ * inicio de la ruta y confirmación de entregas.
  */
 @ApiTags('Despachos')
 @ApiBearerAuth()
@@ -17,7 +17,9 @@ export class DespachosController {
   constructor(private readonly servicio: DespachosService) {}
 
   @Get()
-  listar() { throw new NotImplementedException('Pendiente: Iteración 3'); }
+  listar(@Query() filtro: FiltroDespachosDto) {
+    return this.servicio.listar(filtro.estado);
+  }
 
   @HttpCode(200)
   @Post('calcular-ruta')
@@ -35,12 +37,22 @@ export class DespachosController {
     return this.servicio.obtener(id);
   }
 
+  @HttpCode(200)
   @Post(':id/iniciar')
-  iniciar(@Param('id') _id: string) { throw new NotImplementedException('Pendiente: Iteración 3'); }
+  iniciar(@Param('id', ParseUUIDPipe) id: string) {
+    return this.servicio.iniciar(id);
+  }
 
   @HttpCode(200)
   @Post(':id/paradas/:paradaId/entregar')
   entregar(@Param('id', ParseUUIDPipe) id: string, @Param('paradaId', ParseUUIDPipe) paradaId: string) {
     return this.servicio.entregar(id, paradaId);
+  }
+
+  /** Solo despachos sin paradas: con pedidos asignados el stock ya salió y la ruta es historial. */
+  @HttpCode(204)
+  @Delete(':id')
+  eliminar(@Param('id', ParseUUIDPipe) id: string) {
+    return this.servicio.eliminar(id);
   }
 }

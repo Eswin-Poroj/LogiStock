@@ -9,7 +9,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand --forceExit",
     "test:pb": "jest --config ./test/jest-e2e.json --testPathPattern pb.e2e",
     "test:pa": "jest --config ./test/jest-e2e.json --testPathPattern pa-",
     "test:ps": "jest --config ./test/jest-e2e.json --testPathPattern ps.e2e",
