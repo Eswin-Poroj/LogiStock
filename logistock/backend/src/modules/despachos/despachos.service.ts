@@ -22,17 +22,22 @@ export class DespachosService {
     const cruda = await this.rutas.calcular(puntos.map((p) => ({ lng: p.lng, lat: p.lat })));
     if (!cruda) throw new BadGatewayException('El motor de rutas no respondió');
     const salida = dto.salida_prevista ? Date.parse(dto.salida_prevista) : Date.now();
+    const origen = puntos[0];
     return {
       distancia_km: cruda.distancia_km,
       duracion_min: cruda.duracion_min,
       proveedor: cruda.proveedor,
+      origen: { nombre: origen.cliente, direccion: origen.direccion, latitud: origen.lat, longitud: origen.lng },
       paradas: cruda.ordenPuntos.map((indicePunto, n) => ({
         orden: n + 1,
         pedido_id: puntos[indicePunto].pedidoId,
         cliente: puntos[indicePunto].cliente,
         direccion: puntos[indicePunto].direccion,
+        latitud: puntos[indicePunto].lat,
+        longitud: puntos[indicePunto].lng,
         eta: new Date(salida + cruda.segundosAcumulados[n] * 1000).toISOString(),
       })),
+      trazo: cruda.trazo,
     };
   }
 

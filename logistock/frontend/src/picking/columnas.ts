@@ -20,3 +20,13 @@ export function agruparTareas<T extends { estado: EstadoPicking }>(tareas: T[]):
     en_preparacion: tareas.filter((tarea) => columnaDeTarea(tarea.estado) === 'en_preparacion'),
   }
 }
+
+/**
+ * Texto de avance que muestra la tarjeta de una tarea en el tablero (figura 7: "Picking en curso · 1 de 2").
+ * Devuelve null cuando la tarjeta no debe mostrar avance.
+ */
+export function progresoTarea(tarea: { estado: EstadoPicking; lineas: { cantidad: number; cantidad_recogida: number }[] }): string | null {
+  // TODO(usuario): decide qué cuenta como avance y en qué estados se muestra.
+  void tarea
+  return null
+}

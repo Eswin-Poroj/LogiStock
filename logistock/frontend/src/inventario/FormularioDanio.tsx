@@ -8,6 +8,7 @@ import type { AjusteNuevo, Bodega, Movimiento, Producto } from '../dominio/tipos
 import { esUuid } from '../dominio/uuid'
 import { accesoDe } from '../navegacion/modulos'
 import { MenuInventario } from './MenuInventario'
+import { Encabezado } from '../navegacion/Encabezado'
 
 export function FormularioDanio() {
   const { token, usuario } = useSesion()
@@ -39,35 +40,38 @@ export function FormularioDanio() {
   }
 
   return (
-    <section className="pantalla">
-      <MenuInventario escritura />
-      <h1>Daño</h1>
-      {(listaError || error) && <AvisoApi error={(listaError ?? error) as ApiError} />}
-      <label>
-        Bodega
-        <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
-          <option value="">Selecciona</option>
-          {bodegas.items.map((bodega) => <option key={bodega.id} value={bodega.id}>{bodega.nombre}</option>)}
-        </select>
-      </label>
-      <label>
-        Producto
-        <select value={productoId} onChange={(evento) => setProductoId(evento.target.value)}>
-          <option value="">Selecciona</option>
-          {productos.items.map((producto) => <option key={producto.id} value={producto.id}>{producto.nombre}</option>)}
-        </select>
-      </label>
-      <label>
-        Cantidad
-        <input type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} />
-      </label>
-      <label>
-        Motivo
-        <input value={motivo} onChange={(evento) => setMotivo(evento.target.value)} />
-      </label>
-      <button type="button" className="boton-primario" disabled={!listo} onClick={() => void enviar()}>Registrar daño</button>
-      {movimiento && <p>Movimiento {movimiento.id}</p>}
-      {movimiento && <p>Cantidad {movimiento.cantidad}</p>}
+    <section className="pantalla pantalla-ficha">
+      <Encabezado titulo="Daño">
+        <MenuInventario escritura />
+      </Encabezado>
+      <div className="ficha">
+        {(listaError || error) && <AvisoApi error={(listaError ?? error) as ApiError} />}
+        <label>
+          Bodega
+          <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
+            <option value="">Selecciona</option>
+            {bodegas.items.map((bodega) => <option key={bodega.id} value={bodega.id}>{bodega.nombre}</option>)}
+          </select>
+        </label>
+        <label>
+          Producto
+          <select value={productoId} onChange={(evento) => setProductoId(evento.target.value)}>
+            <option value="">Selecciona</option>
+            {productos.items.map((producto) => <option key={producto.id} value={producto.id}>{producto.nombre}</option>)}
+          </select>
+        </label>
+        <label>
+          Cantidad
+          <input type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} />
+        </label>
+        <label>
+          Motivo
+          <input value={motivo} onChange={(evento) => setMotivo(evento.target.value)} />
+        </label>
+        <button type="button" className="boton-primario" disabled={!listo} onClick={() => void enviar()}>Registrar daño</button>
+        {movimiento && <p>Movimiento {movimiento.id}</p>}
+        {movimiento && <p>Cantidad {movimiento.cantidad}</p>}
+      </div>
     </section>
   )
 }

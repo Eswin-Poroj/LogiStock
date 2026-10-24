@@ -4,6 +4,7 @@ import { ApiError, api } from '../api/cliente'
 import { useListado } from '../api/useListado'
 import { useSesion } from '../auth/sesion'
 import type { Bodega } from '../dominio/tipos'
+import { Encabezado } from '../navegacion/Encabezado'
 import { csvConBom } from './csv'
 import type { AlertaStock, FilaVendida, ResumenReporte } from './leerReportes'
 import { esAlertas, esResumen, esVendidos } from './leerReportes'
@@ -70,9 +71,13 @@ export function Reportes() {
     URL.revokeObjectURL(url)
   }
 
+  const maximoDia = Math.max(1, ...(resumen?.despachos_por_dia ?? []).map((dia) => dia.cantidad))
+
   return (
     <section className="pantalla">
-      <h1>Reportes</h1>
+      <Encabezado titulo="Reportes">
+        <button type="button" disabled={!hayDatos} onClick={exportar}>Exportar a Excel</button>
+      </Encabezado>
       <div className="filtros filtros-reporte">
         <label>
           Reporte
@@ -97,64 +102,85 @@ export function Reportes() {
           Hasta
           <input type="date" value={hasta} onChange={(evento) => setHasta(evento.target.value)} />
         </label>
-        <button type="button" className="boton-primario" disabled={!hayDatos} onClick={exportar}>Exportar a Excel</button>
       </div>
       {verResumen && (
-        <section className="bloque-reporte" aria-label="Resumen">
-          <h2>Resumen</h2>
+        <section aria-label="Resumen">
           {falloResumen instanceof ApiError && <AvisoApi error={falloResumen} />}
           {falloResumen === 'formato' && <p role="alert">El servicio no devolvió el formato esperado.</p>}
           {resumen && (
-            <>
-              <div className="metricas">
-                <div className="metrica"><span>Despachados</span><p>{resumen.pedidos_despachados}</p></div>
-                <div className="metrica"><span>A tiempo</span><p>{resumen.entregas_a_tiempo_pct} %</p></div>
-                <div className="metrica"><span>Rotación</span><p>{resumen.rotacion}x</p></div>
-                <div className="metrica"><span>Backorder</span><p>{resumen.pedidos_backorder}</p></div>
+        <div className="metricas">
+          <div className="metrica"><span>Pedidos despachados</span><p>{resumen.pedidos_despachados}</p><small>en el período</small></div>
+          <div className="metrica"><span>Entregas a tiempo</span><p>{resumen.entregas_a_tiempo_pct} %</p><small>del total entregado</small></div>
+          <div className="metrica"><span>Rotación de inventario</span><p>{resumen.rotacion}x</p><small>veces en el período</small></div>
+          <div className="metrica"><span>Pedidos con backorder</span><p>{resumen.pedidos_backorder}</p><small>con líneas pendientes</small></div>
+        </div>
+          )}
+        </section>
+      )}
+      <div className="reportes-cuerpo">
+        {verResumen && (
+          <section className="tarjeta bloque-grafica" aria-labelledby="titulo-grafica">
+            <h2 id="titulo-grafica">Pedidos despachados por día</h2>
+            {resumen && resumen.despachos_por_dia.length === 0 && <p className="nota">Sin despachos en el período.</p>}
+            {resumen && resumen.despachos_por_dia.length > 0 && (
+              <div className="serie-dias">
+                {resumen.despachos_por_dia.map((dia) => (
+                  <div className="barra-dia" key={dia.etiqueta}>
+                    <div style={{ height: `${(dia.cantidad / maximoDia) * 85}%` }} />
+                    <span className="dia">{dia.etiqueta}</span>
+                    <span className="valor">{dia.cantidad}</span>
+                  </div>
+                ))}
               </div>
-              {resumen.despachos_por_dia.length > 0 && (
-                <div className="serie-dias">
-                  {resumen.despachos_por_dia.map((dia) => (
-                    <div className="barra-dia" key={dia.etiqueta}>
-                      <div style={{ height: `${dia.cantidad}px` }} />
-                      <span>{dia.etiqueta}</span>
-                      <span>{dia.cantidad}</span>
-                    </div>
-                  ))}
+            )}
+          </section>
+        )}
+        <div className="reportes-lateral">
+          {verVendidos && (
+            <section className="tarjeta bloque-reporte" aria-label="Más vendidos">
+              <h2>Productos más vendidos</h2>
+              {falloVendidos instanceof ApiError && <AvisoApi error={falloVendidos} />}
+              {falloVendidos === 'formato' && <p role="alert">El servicio no devolvió el formato esperado.</p>}
+              {vendidos && (
+                <div className="tabla-contenedor">
+                  <table>
+                    <thead><tr><th>SKU</th><th>Producto</th><th className="num">Unidades</th></tr></thead>
+                    <tbody>
+                      {vendidos.map((fila) => (
+                        <tr key={fila.sku}><td className="sku">{fila.sku}</td><td>{fila.producto}</td><td className="num">{fila.unidades}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
-            </>
+            </section>
           )}
-        </section>
-      )}
-      {verVendidos && (
-        <section className="bloque-reporte" aria-label="Más vendidos">
-          <h2>Más vendidos</h2>
-          {falloVendidos instanceof ApiError && <AvisoApi error={falloVendidos} />}
-          {falloVendidos === 'formato' && <p role="alert">El servicio no devolvió el formato esperado.</p>}
-          {vendidos && (
-            <ul className="lista-reporte">
-              {vendidos.map((fila) => (
-                <li key={fila.sku}><span>{fila.sku}</span> {fila.producto} <span>{fila.unidades}</span></li>
-              ))}
-            </ul>
+          {verAlertas && (
+            <section className="tarjeta bloque-reporte" aria-label="Alertas de stock">
+              <h2>Alertas de stock</h2>
+              {falloAlertas instanceof ApiError && <AvisoApi error={falloAlertas} />}
+              {falloAlertas === 'formato' && <p role="alert">El servicio no devolvió el formato esperado.</p>}
+              {alertas && (
+                <div className="tabla-contenedor">
+                  <table>
+                    <thead><tr><th>SKU</th><th>Producto</th><th className="num">Disp.</th><th>Estado</th></tr></thead>
+                    <tbody>
+                      {alertas.map((fila) => (
+                        <tr key={fila.sku}>
+                          <td className="sku">{fila.sku}</td>
+                          <td>{fila.producto}</td>
+                          <td className="num">{fila.disponible}</td>
+                          <td><span className={fila.estado === 'reponer' ? 'etiqueta-alerta' : 'etiqueta-agotado'}>{etiquetaAlerta(fila.estado)}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           )}
-        </section>
-      )}
-      {verAlertas && (
-        <section className="bloque-reporte" aria-label="Alertas de stock">
-          <h2>Alertas de stock</h2>
-          {falloAlertas instanceof ApiError && <AvisoApi error={falloAlertas} />}
-          {falloAlertas === 'formato' && <p role="alert">El servicio no devolvió el formato esperado.</p>}
-          {alertas && (
-            <ul className="lista-reporte">
-              {alertas.map((fila) => (
-                <li key={fila.sku}><span>{fila.sku}</span> {fila.producto} {fila.disponible} <span className={fila.estado === 'reponer' ? 'etiqueta-alerta' : 'etiqueta-agotado'}>{etiquetaAlerta(fila.estado)}</span></li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
+        </div>
+      </div>
     </section>
   )
 }

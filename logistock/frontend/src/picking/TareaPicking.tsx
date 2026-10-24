@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useSesion } from '../auth/sesion'
 import { accesoDe } from '../navegacion/modulos'
+import { Encabezado } from '../navegacion/Encabezado'
 import { DetalleTarea } from './DetalleTarea'
 import { MenuPicking } from './MenuPicking'
 
@@ -22,11 +23,12 @@ export function TareaPicking() {
 
   return (
     <section className="pantalla">
-      <MenuPicking />
-      <h1>Tarea de picking</h1>
+      <Encabezado titulo="Tarea de picking">
+        <MenuPicking />
+      </Encabezado>
       {lectura && <p>Picking es de solo lectura para tu rol.</p>}
       {!id && (
-        <form onSubmit={abrir}>
+        <form className="tarjeta campos-despacho" onSubmit={abrir}>
           <p>Elige una tarea en el tablero.</p>
           <label>
             Tarea

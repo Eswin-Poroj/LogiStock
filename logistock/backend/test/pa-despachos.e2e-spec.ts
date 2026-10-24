@@ -130,6 +130,9 @@ describe('PA despachos', () => {
       expect(res.status).toBe(200);
       expect(['osrm', 'google']).toContain(res.body.proveedor);
       expect(res.body.paradas).toHaveLength(4);
+      expect(typeof res.body.origen.latitud).toBe('number');
+      for (const p of res.body.paradas) expect(typeof p.latitud).toBe('number');
+      expect(Array.isArray(res.body.trazo)).toBe(true);
       const etas = res.body.paradas.map((p: { eta: string }) => Date.parse(p.eta));
       for (let i = 1; i < etas.length; i++) expect(etas[i]).toBeGreaterThan(etas[i - 1]);
     });

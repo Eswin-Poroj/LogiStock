@@ -7,6 +7,7 @@ import { useSesion } from '../auth/sesion'
 import { quetzales } from '../dominio/quetzales'
 import type { Bodega, Cliente, InventarioRespuesta, Pedido, PedidoNuevo, Producto } from '../dominio/tipos'
 import { esUuid } from '../dominio/uuid'
+import { Encabezado } from '../navegacion/Encabezado'
 import {
   IVA_PORCENTAJE,
   ajustarADisponible,
@@ -154,13 +155,9 @@ export function FormularioPedido() {
 
   return (
     <section className="panel panel-pedido">
-      <header className="panel-encabezado">
-        <div className="encabezado-fila">
-          <h1>Nuevo pedido de venta</h1>
-          <button type="button" onClick={cancelarBorrador}>Cancelar</button>
-        </div>
-        <p className="panel-subtitulo">Cotización con validación de stock en la bodega seleccionada (CU-01 / CU-02).</p>
-      </header>
+      <Encabezado titulo="Nuevo pedido de venta">
+        <button type="button" onClick={cancelarBorrador}>Cancelar</button>
+      </Encabezado>
       {errorLista && <AvisoApi error={errorLista} />}
       {errorConfirmacion && !stock409 && <AvisoApi error={errorConfirmacion} />}
       {stock409 && errorConfirmacion && (
@@ -168,136 +165,149 @@ export function FormularioPedido() {
       )}
       <form className="formulario-pedido" onSubmit={(evento) => evento.preventDefault()}>
         <div className="pedido-cuerpo">
-        <div className="pedido-lineas">
-        <div className="pedido-datos">
-        <label>
-          Cliente
-          <select value={clienteId} onChange={(evento) => setClienteId(evento.target.value)}>
-            <option value="">Selecciona</option>
-            {clientes.items.map((fila) => <option key={fila.id} value={fila.id}>{fila.nombre}</option>)}
-          </select>
-        </label>
-        <label>
-          NIT
-          <input aria-label="NIT" value={cliente?.nit ?? ''} disabled readOnly />
-        </label>
-        <label>
-          Bodega de despacho
-          <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
-            <option value="">Selecciona</option>
-            {bodegas.items.map((fila) => <option key={fila.id} value={fila.id}>{fila.nombre}</option>)}
-          </select>
-        </label>
-        </div>
-        <div className="tabla-contenedor">
-        <table>
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Cantidad</th>
-              <th>Disponible</th>
-              <th>Precio unit.</th>
-              <th>Subtotal</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lineas.map((linea) => {
-              const reservable = lineaReservable(linea)
-              const subtotal = reservable ? linea.cantidad * linea.precio_unitario : 0
-              return (
-                <tr key={linea.producto_id}>
-                  <td>{linea.nombre}<br />{linea.sku}</td>
-                  <td>
-                    <input
-                      aria-label={`Cantidad ${linea.sku}`}
-                      type="number"
-                      min={1}
-                      value={linea.cantidad}
-                      onChange={(evento) => cambiarCantidad(linea.producto_id, Number(evento.target.value))}
-                    />
-                  </td>
-                  <td>{linea.disponible ?? ''}</td>
-                  <td>{quetzales(linea.precio_unitario)}</td>
-                  <td>{quetzales(subtotal)}</td>
-                  <td className={reservable ? 'estado-ok' : 'estado-alerta'}>
-                    {reservable && 'Reservable'}
-                    {!reservable && linea.resolucion === 'backorder' && 'Backorder'}
-                    {!reservable && linea.resolucion !== 'backorder' && 'Stock insuficiente'}
-                    {!reservable && <><br />No incluido</>}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-        </div>
-        {lineas.filter((linea) => !lineaReservable(linea)).map((linea) => (
-          <div key={linea.producto_id} className="aviso-faltante" role="status">
-            <p>{`${linea.sku}: solo hay ${linea.disponible ?? ''} de ${linea.cantidad} unidades en ${bodega?.nombre ?? 'la bodega'}`}</p>
-            <div className="acciones-faltante">
-              <button
-                type="button"
-                disabled={linea.disponible === null || linea.disponible < 1}
-                onClick={() => setLineas((actuales) => actuales.map((fila) => fila.producto_id === linea.producto_id ? ajustarADisponible(fila) : fila))}
-              >
-                Ajustar a {linea.disponible}
-              </button>
-              <button type="button" onClick={() => setSustitutosDe(linea.producto_id)}>Ver sustitutos</button>
-              <button
-                type="button"
-                aria-pressed={linea.resolucion === 'backorder'}
-                onClick={() => setLineas((actuales) => actuales.map((fila) => fila.producto_id === linea.producto_id ? dejarBackorder(fila) : fila))}
-              >
-                Dejar como backorder
-              </button>
-            </div>
-            {sustitutosDe === linea.producto_id && (
-              <>
-                <p>La API no tiene sustitutos. No se muestra ningún producto de reemplazo.</p>
-                <ul data-testid={`sustitutos-${linea.producto_id}`} />
-              </>
-            )}
+          <div className="pedido-principal">
+            <section className="tarjeta" aria-labelledby="titulo-cliente">
+              <h2 id="titulo-cliente">Cliente y bodega</h2>
+              <div className="pedido-datos">
+                <label>
+                  Cliente
+                  <select value={clienteId} onChange={(evento) => setClienteId(evento.target.value)}>
+                    <option value="">Selecciona</option>
+                    {clientes.items.map((fila) => <option key={fila.id} value={fila.id}>{fila.nombre}</option>)}
+                  </select>
+                </label>
+                <label>
+                  NIT
+                  <input aria-label="NIT" value={cliente?.nit ?? ''} disabled readOnly />
+                </label>
+                <label>
+                  Bodega de despacho
+                  <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
+                    <option value="">Selecciona</option>
+                    {bodegas.items.map((fila) => <option key={fila.id} value={fila.id}>{fila.nombre}</option>)}
+                  </select>
+                </label>
+              </div>
+            </section>
+            <section className="tarjeta" aria-labelledby="titulo-lineas">
+              <div className="tarjeta-titulo">
+                <h2 id="titulo-lineas">Líneas del pedido</h2>
+                {bodega && <p>Stock validado en línea contra {bodega.nombre}</p>}
+              </div>
+              <div className="tabla-contenedor">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Cantidad</th>
+                      <th className="num">Disponible</th>
+                      <th className="num">Precio unit.</th>
+                      <th className="num">Subtotal</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineas.map((linea) => {
+                      const reservable = lineaReservable(linea)
+                      const subtotal = reservable ? linea.cantidad * linea.precio_unitario : 0
+                      return (
+                        <tr key={linea.producto_id} className={reservable ? undefined : 'fila-alerta'}>
+                          <td><span className="producto-nombre">{linea.nombre}</span><span className="sku">{linea.sku}</span></td>
+                          <td>
+                            <input
+                              aria-label={`Cantidad ${linea.sku}`}
+                              type="number"
+                              min={1}
+                              value={linea.cantidad}
+                              onChange={(evento) => cambiarCantidad(linea.producto_id, Number(evento.target.value))}
+                            />
+                          </td>
+                          <td className="num">{linea.disponible ?? ''}</td>
+                          <td className="num">{quetzales(linea.precio_unitario)}</td>
+                          <td className="num">{reservable ? quetzales(subtotal) : <span className="no-incluido">No incluido</span>}</td>
+                          <td className={reservable ? 'estado-ok' : 'estado-alerta'}>
+                            <span className="pastilla">
+                              {reservable && 'Reservable'}
+                              {!reservable && linea.resolucion === 'backorder' && 'Backorder'}
+                              {!reservable && linea.resolucion !== 'backorder' && 'Stock insuficiente'}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {lineas.filter((linea) => !lineaReservable(linea)).map((linea) => (
+                <div key={linea.producto_id} className="aviso-faltante" role="status">
+                  <p>{`${linea.sku}: solo hay ${linea.disponible ?? ''} de ${linea.cantidad} unidades en ${bodega?.nombre ?? 'la bodega'}`}</p>
+                  <p className="detalle">Esta línea se rechaza sin bloquear el resto del pedido. Ajusta la cantidad, elige un sustituto o déjala como backorder.</p>
+                  <div className="acciones-faltante">
+                    <button
+                      type="button"
+                      disabled={linea.disponible === null || linea.disponible < 1}
+                      onClick={() => setLineas((actuales) => actuales.map((fila) => fila.producto_id === linea.producto_id ? ajustarADisponible(fila) : fila))}
+                    >
+                      Ajustar a {linea.disponible}
+                    </button>
+                    <button type="button" onClick={() => setSustitutosDe(linea.producto_id)}>Ver sustitutos</button>
+                    <button
+                      type="button"
+                      aria-pressed={linea.resolucion === 'backorder'}
+                      onClick={() => setLineas((actuales) => actuales.map((fila) => fila.producto_id === linea.producto_id ? dejarBackorder(fila) : fila))}
+                    >
+                      Dejar como backorder
+                    </button>
+                  </div>
+                  {sustitutosDe === linea.producto_id && (
+                    <>
+                      <p>La API no tiene sustitutos. No se muestra ningún producto de reemplazo.</p>
+                      <ul data-testid={`sustitutos-${linea.producto_id}`} />
+                    </>
+                  )}
+                </div>
+              ))}
+              <div className="pedido-busqueda">
+                <label>
+                  Agregar producto
+                  <input aria-label="Buscar por SKU o nombre" placeholder="Buscar por SKU o nombre" value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} />
+                </label>
+                <button type="button" disabled={busqueda.trim() === '' || !esUuid(bodegaId)} onClick={() => void agregar()}>Agregar línea</button>
+              </div>
+              {coincidencias.length > 1 && (
+                <label>
+                  Coincidencias
+                  <select aria-label="Coincidencias" value={productoElegido} onChange={(evento) => setProductoElegido(evento.target.value)}>
+                    <option value="">Selecciona</option>
+                    {coincidencias.map((fila) => <option key={fila.id} value={fila.id}>{fila.sku} {fila.nombre}</option>)}
+                  </select>
+                </label>
+              )}
+              {avisoBusqueda && <p role="status">{avisoBusqueda}</p>}
+            </section>
           </div>
-        ))}
-        <div className="pedido-busqueda">
-        <label>
-          Buscar por SKU o nombre
-          <input value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} />
-        </label>
-        {coincidencias.length > 1 && (
-          <label>
-            Coincidencias
-            <select aria-label="Coincidencias" value={productoElegido} onChange={(evento) => setProductoElegido(evento.target.value)}>
-              <option value="">Selecciona</option>
-              {coincidencias.map((fila) => <option key={fila.id} value={fila.id}>{fila.sku} {fila.nombre}</option>)}
-            </select>
-          </label>
-        )}
-        {avisoBusqueda && <p role="status">{avisoBusqueda}</p>}
-        <button type="button" disabled={busqueda.trim() === '' || !esUuid(bodegaId)} onClick={() => void agregar()}>Agregar línea</button>
+          <div className="pedido-lateral">
+            <aside className="tarjeta resumen-caja">
+              <h2>Resumen</h2>
+              <p>Líneas confirmadas <span>{resumen.confirmadas} de {resumen.totalLineas}</span></p>
+              <p>Subtotal <span>{quetzales(resumen.subtotal)}</span></p>
+              <p>IVA {IVA_PORCENTAJE} % <span>{quetzales(resumen.iva)}</span></p>
+              <p className="resumen-total">Total <span>{quetzales(resumen.total)}</span></p>
+              <button type="button" className="boton-primario" disabled={!valido} onClick={() => void confirmar()}>Confirmar pedido</button>
+              <button type="button" onClick={() => setAvisoCotizacion('La API no guarda cotizaciones. Confirma el pedido para reservar el stock.')}>Guardar como cotización</button>
+              {avisoCotizacion && <p role="status">{avisoCotizacion}</p>}
+              <p className="nota-resumen">Las líneas sin stock no se incluyen en el total ni se reservan.</p>
+            </aside>
+            <section className="tarjeta-info pedido-pasos">
+              <h2>Qué pasa al confirmar</h2>
+              <ol>
+                <li>Se bloquea cada SKU por bodega para evitar que otro asesor reserve el mismo stock.</li>
+                <li>El stock de cada línea pasa de Disponible a Reservado.</li>
+                <li>Se crea el pedido en estado Creado y se encola en picking.</li>
+              </ol>
+            </section>
+          </div>
         </div>
-        </div>
-        <aside className="resumen-caja">
-          <h2>Resumen</h2>
-          <p>Líneas confirmadas <span>{resumen.confirmadas} de {resumen.totalLineas}</span></p>
-          <p>Subtotal <span>{quetzales(resumen.subtotal)}</span></p>
-          <p>IVA {IVA_PORCENTAJE} % <span>{quetzales(resumen.iva)}</span></p>
-          <p>Total <span>{quetzales(resumen.total)}</span></p>
-          <button type="button" className="boton-primario" disabled={!valido} onClick={() => void confirmar()}>Confirmar pedido</button>
-          <button type="button" onClick={() => setAvisoCotizacion('La API no guarda cotizaciones. Confirma el pedido para reservar el stock.')}>Guardar como cotización</button>
-          {avisoCotizacion && <p role="status">{avisoCotizacion}</p>}
-          <p className="nota-resumen">Las líneas sin stock no se incluyen en el total ni se reservan.</p>
-        </aside>
-        </div>
-        <section className="pedido-pasos">
-          <h2>Qué pasa al confirmar</h2>
-          <ol>
-            <li>Se bloquea cada SKU por bodega para evitar que otro asesor reserve el mismo stock.</li>
-            <li>El stock de cada línea pasa de Disponible a Reservado.</li>
-            <li>Se crea el pedido en estado Creado y se encola en picking.</li>
-          </ol>
-        </section>
       </form>
     </section>
   )

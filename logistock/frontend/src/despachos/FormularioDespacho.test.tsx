@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../App'
@@ -80,9 +80,9 @@ describe('planificar despacho', () => {
     await user.click(screen.getByRole('button', { name: 'Calcular ruta' }))
     expect(await screen.findByText('182 km')).toBeInTheDocument()
     expect(screen.getByText('4 h 35 min')).toBeInTheDocument()
-    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(within(screen.getByText('Paradas').parentElement!).getByText('2')).toBeInTheDocument()
     expect(screen.getByText('Motor: osrm')).toBeInTheDocument()
-    expect(screen.getByText('Ferretería El Tornillo')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Ruta propuesta' })).getByText('Ferretería El Tornillo')).toBeInTheDocument()
     expect(screen.getByText('08:40')).toBeInTheDocument()
     expect(screen.queryByText(/valores estimados de ejemplo/)).not.toBeInTheDocument()
     const primero = red.llamadas.find((llamada) => llamada.url.endsWith('/calcular-ruta'))

@@ -213,14 +213,26 @@ export interface ParadaRuta {
   pedido_id: string
   cliente: string
   direccion: string
+  latitud?: number
+  longitud?: number
   eta: string
+}
+
+export interface OrigenRuta {
+  nombre: string
+  direccion: string
+  latitud: number
+  longitud: number
 }
 
 export interface Ruta {
   distancia_km: number
   duracion_min: number
   proveedor: 'osrm' | 'google'
+  origen?: OrigenRuta
   paradas: ParadaRuta[]
+  /** Recorrido por carretera como pares [latitud, longitud]. */
+  trazo?: [number, number][]
 }
 
 export interface DespachoNuevo {

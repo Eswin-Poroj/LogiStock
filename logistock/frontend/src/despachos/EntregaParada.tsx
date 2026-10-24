@@ -5,6 +5,7 @@ import { useSesion } from '../auth/sesion'
 import type { Despacho } from '../dominio/tipos'
 import { esUuid } from '../dominio/uuid'
 import { MenuDespachos } from './MenuDespachos'
+import { Encabezado } from '../navegacion/Encabezado'
 
 export function EntregaParada() {
   const { token } = useSesion()
@@ -34,23 +35,26 @@ export function EntregaParada() {
   const pendientes = despacho?.paradas.filter((parada) => !parada.entregada_at) ?? []
 
   return (
-    <section className="pantalla">
-      <MenuDespachos />
-      <h1>Entrega</h1>
-      {error && <AvisoApi error={error} />}
-      <label>
-        Despacho
-        <input value={despachoId} onChange={(evento) => setDespachoId(evento.target.value)} />
-      </label>
-      {pendientes.map((parada) => (
-        <button className="boton-confirmar" key={parada.id} type="button" onClick={() => void entregar(parada.id)}>
-          {pendientes.length === 1 ? 'Confirmar entrega' : `Confirmar entrega ${parada.orden}`}
-        </button>
-      ))}
-      {despacho && <p>Despacho {despacho.codigo}</p>}
-      {despacho && <p>Estado {despacho.estado}</p>}
-      {despacho?.estado === 'finalizado' && <p className="nota-ok">Despacho finalizado</p>}
-      {despacho?.paradas.map((parada) => parada.entregada_at ? <p key={parada.id}>Entregada {parada.entregada_at}</p> : <p key={parada.id}>Parada {parada.orden}</p>)}
+    <section className="pantalla pantalla-ficha">
+      <Encabezado titulo="Entrega">
+        <MenuDespachos />
+      </Encabezado>
+      <div className="ficha">
+        {error && <AvisoApi error={error} />}
+        <label>
+          Despacho
+          <input value={despachoId} onChange={(evento) => setDespachoId(evento.target.value)} />
+        </label>
+        {pendientes.map((parada) => (
+          <button className="boton-confirmar" key={parada.id} type="button" onClick={() => void entregar(parada.id)}>
+            {pendientes.length === 1 ? 'Confirmar entrega' : `Confirmar entrega ${parada.orden}`}
+          </button>
+        ))}
+        {despacho && <p>Despacho {despacho.codigo}</p>}
+        {despacho && <p>Estado {despacho.estado}</p>}
+        {despacho?.estado === 'finalizado' && <p className="nota-ok">Despacho finalizado</p>}
+        {despacho?.paradas.map((parada) => parada.entregada_at ? <p key={parada.id}>Entregada {parada.entregada_at}</p> : <p key={parada.id}>Parada {parada.orden}</p>)}
+      </div>
     </section>
   )
 }

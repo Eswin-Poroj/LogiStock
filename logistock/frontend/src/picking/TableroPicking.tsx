@@ -6,7 +6,8 @@ import { useSesion } from '../auth/sesion'
 import { quetzales } from '../dominio/quetzales'
 import type { PedidoResumen, TareaPicking } from '../dominio/tipos'
 import { accesoDe } from '../navegacion/modulos'
-import { agruparTareas, tituloColumna } from './columnas'
+import { Encabezado } from '../navegacion/Encabezado'
+import { agruparTareas, progresoTarea, tituloColumna } from './columnas'
 import type { ColumnaPedido } from './columnas'
 import { DetalleTarea } from './DetalleTarea'
 import { leerTareas } from './leerTareas'
@@ -15,6 +16,7 @@ import { MenuPicking } from './MenuPicking'
 export function TableroPicking() {
   const { token, usuario } = useSesion()
   const [tareaId, setTareaId] = useState<string | null>(null)
+  const [ranura, setRanura] = useState<HTMLDivElement | null>(null)
   const lectura = !usuario || accesoDe(usuario.rol, 'picking') !== 'escritura'
   const [tareas, setTareas] = useState<TareaPicking[]>([])
   const [despachados, setDespachados] = useState<PedidoResumen[]>([])
@@ -53,8 +55,10 @@ export function TableroPicking() {
 
   return (
     <section className="pantalla">
-      <MenuPicking />
-      <h1>Preparación de pedidos</h1>
+      <Encabezado titulo="Preparación de pedidos">
+        <MenuPicking />
+        <div className="escaneo-encabezado" ref={setRanura} />
+      </Encabezado>
       {error && <AvisoApi error={error} />}
       <div className="columnas-pedido">
         {columnas.map((columna) => (
@@ -63,24 +67,29 @@ export function TableroPicking() {
               <h2>{tituloColumna(columna.id)}</h2>
               <p className="cuenta">{columna.tareas.length + columna.pedidos.length}</p>
             </header>
-            {columna.tareas.map((tarea) => (
-              <article key={tarea.id} className="tarjeta-tarea">
-                <Link to={`/picking/tarea?id=${tarea.id}`}>{tarea.numero_pedido ?? tarea.pedido_id}</Link>
-                <button type="button" onClick={() => setTareaId(tarea.id)}>Abrir</button>
-                {tarea.cliente && <p>{tarea.cliente}</p>}
-              </article>
-            ))}
+            {columna.tareas.map((tarea) => {
+              const progreso = progresoTarea(tarea)
+              return (
+                <article key={tarea.id} className={tarea.id === tareaId ? 'tarjeta-tarea activa' : 'tarjeta-tarea'}>
+                  <Link className="numero" to={`/picking/tarea?id=${tarea.id}`}>{tarea.numero_pedido ?? tarea.pedido_id}</Link>
+                  {tarea.cliente && <p className="cliente">{tarea.cliente}</p>}
+                  <p className="resumen">{tarea.lineas.length} {tarea.lineas.length === 1 ? 'línea' : 'líneas'}</p>
+                  {progreso && <p className="progreso">{progreso}</p>}
+                  <button type="button" onClick={() => setTareaId(tarea.id)}>Abrir</button>
+                </article>
+              )
+            })}
             {columna.pedidos.map((pedido) => (
               <article key={pedido.id} className="tarjeta-tarea">
-                <p>{pedido.numero}</p>
-                <p>{pedido.cliente}</p>
-                <p>{quetzales(pedido.total)}</p>
+                <p className="numero">{pedido.numero}</p>
+                <p className="cliente">{pedido.cliente}</p>
+                <p className="resumen">{quetzales(pedido.total)}</p>
               </article>
             ))}
           </section>
         ))}
       </div>
-      <DetalleTarea tareaId={tareaId} lectura={lectura} onActualizada={(tarea) => setTareas((actuales) => actuales.map((fila) => fila.id === tarea.id ? { ...fila, ...tarea } : fila))} />
+      <DetalleTarea tareaId={tareaId} lectura={lectura} ranuraEscaneo={ranura} onActualizada={(tarea) => setTareas((actuales) => actuales.map((fila) => fila.id === tarea.id ? { ...fila, ...tarea } : fila))} />
     </section>
   )
 }

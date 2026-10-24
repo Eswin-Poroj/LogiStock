@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AvisoApi } from '../api/AvisoApi'
 import { ApiError, api } from '../api/cliente'
 import { useSesion } from '../auth/sesion'
@@ -19,7 +20,13 @@ const NOTA: Record<EstadoPicking, string> = {
   con_faltante: 'La tarea quedó con faltante. El sistema avisa al asesor de ventas.',
 }
 
-export function DetalleTarea({ tareaId, lectura, onActualizada }: { tareaId: string | null; lectura: boolean; onActualizada: (tarea: TareaPicking) => void }) {
+export function DetalleTarea({ tareaId, lectura, onActualizada, ranuraEscaneo = null }: {
+  tareaId: string | null
+  lectura: boolean
+  onActualizada: (tarea: TareaPicking) => void
+  /** Lugar del encabezado donde va el escaneo, como en la figura 7; si no hay, queda dentro de la tarjeta. */
+  ranuraEscaneo?: HTMLElement | null
+}) {
   const { token } = useSesion()
   const [tarea, setTarea] = useState<TareaPicking | null>(null)
   const [sku, setSku] = useState('')
@@ -64,19 +71,40 @@ export function DetalleTarea({ tareaId, lectura, onActualizada }: { tareaId: str
   }
 
   if (!tareaId) return null
+  const escaneo = !lectura && (
+    <div className="controles-escaneo">
+      <label><span className={ranuraEscaneo ? 'solo-lectores' : undefined}>SKU</span><input placeholder="Escanear o escribir SKU" value={sku} onChange={(evento) => setSku(evento.target.value)} /></label>
+      <label><span className={ranuraEscaneo ? 'solo-lectores' : undefined}>Cantidad</span><input type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} /></label>
+      <button type="button" className="boton-confirmar" onClick={() => void escanear()}>Confirmar escaneo</button>
+    </div>
+  )
   return (
-    <section className="detalle-tarea">
+    <section className="tarjeta detalle-tarea">
       {error && <AvisoApi error={error} />}
+      {tarea && (
+        <div className="tarjeta-titulo">
+          <h2>{[tarea.numero_pedido, tarea.cliente].filter(Boolean).join(' · ') || 'Tarea de picking'}</h2>
+          {tarea.operario && <p>Asignado a: {tarea.operario}</p>}
+        </div>
+      )}
       {tarea && <p className="estado-pedido">{etiquetaEstadoPicking(tarea.estado)}</p>}
-      {tarea && <p>{NOTA[tarea.estado]}</p>}
-      {tarea?.lineas.map((linea) => (
-        <p className="linea-pick" key={linea.pedido_linea_id}><span className="sku">{linea.sku}</span> {linea.nombre} {linea.ubicacion ?? ''} <span className="conteo">{linea.cantidad_recogida} / {linea.cantidad}</span></p>
-      ))}
+      {tarea && <p className="nota">{NOTA[tarea.estado]}</p>}
+      {tarea?.lineas.map((linea) => {
+        const completa = linea.cantidad_recogida >= linea.cantidad
+        return (
+          <div className={completa ? 'linea-pick completa' : 'linea-pick'} key={linea.pedido_linea_id}>
+            <span className="marca" aria-hidden="true">{completa ? '✓' : ''}</span>
+            <span className="linea-texto">
+              <strong>{linea.nombre}</strong>
+              <span className="sku">{linea.sku}{linea.ubicacion ? ` · ${linea.ubicacion}` : ''}</span>
+            </span>
+            <span className="conteo">{linea.cantidad_recogida} / {linea.cantidad}</span>
+          </div>
+        )
+      })}
+      {escaneo && (ranuraEscaneo ? createPortal(escaneo, ranuraEscaneo) : escaneo)}
       {!lectura && (
         <div className="controles-escaneo">
-          <label>SKU<input value={sku} onChange={(evento) => setSku(evento.target.value)} /></label>
-          <label>Cantidad<input type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} /></label>
-          <button type="button" className="boton-confirmar" onClick={() => void escanear()}>Confirmar escaneo</button>
           <button type="button" className="boton-alerta" onClick={() => void cerrar(true)}>Reportar faltante</button>
           <button type="button" className="boton-primario" disabled={!lista} onClick={() => void cerrar(false)}>Marcar como listo para despacho</button>
         </div>

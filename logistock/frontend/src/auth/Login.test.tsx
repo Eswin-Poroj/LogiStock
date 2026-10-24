@@ -72,27 +72,23 @@ describe('login', () => {
     expect(red.llamadas.some((llamada) => llamada.url.endsWith('/auth/me'))).toBe(false)
   })
 
-  it('no deja sesión si el rol elegido no es el de la cuenta', async () => {
+  it('solo pide correo y contraseña: el rol viene de la cuenta', async () => {
     const user = userEvent.setup()
-    const red = instalarFetch((url, init) => {
-      if (url.endsWith('/auth/login')) {
-        expect(JSON.parse(String(init?.body))).toEqual({ correo: 'ada@ejemplo.com', clave: 'secreta' })
-        expect(JSON.parse(String(init?.body)).rol).toBeUndefined()
-        return { status: 200, body: { access_token: 'token-prueba', expira_en: 3600, usuario } }
-      }
-      if (url.endsWith('/auth/me')) return { status: 200, body: usuario }
+    const admin = { ...usuario, rol: 'administrador' as const }
+    const red = instalarFetch((url) => {
+      if (url.endsWith('/auth/login')) return { status: 200, body: { access_token: 'token-prueba', expira_en: 3600, usuario: admin } }
+      if (url.endsWith('/auth/me')) return { status: 200, body: admin }
       if (url.endsWith('/bodegas')) return { status: 200, body: [{ id: BODEGA_ID, nombre: 'Bodega Central' }] }
-      return { status: 500, body: { statusCode: 500, message: 'no esperado', error: 'Error' } }
+      return { status: 200, body: [] }
     })
     redes.push(red)
     renderLogin()
+    expect(screen.queryByLabelText('Rol')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Correo electrónico'), 'ada@ejemplo.com')
     await user.type(screen.getByLabelText('Contraseña'), 'secreta')
-    await user.selectOptions(screen.getByLabelText('Rol'), 'administrador')
     await user.click(screen.getByRole('button', { name: 'Entrar' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('El rol de la cuenta no coincide con el seleccionado.')
-    expect(sessionStorage.getItem(CLAVE_TOKEN)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument()
+    expect(await screen.findByText('Administrador')).toBeInTheDocument()
+    expect(sessionStorage.getItem(CLAVE_TOKEN)).toBe('token-prueba')
   })
 
   it('con sesión guardada redirige al inicio y no muestra el formulario', async () => {

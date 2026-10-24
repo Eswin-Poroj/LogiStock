@@ -905,6 +905,14 @@ components:
         distancia_km: { type: number, format: double }
         duracion_min: { type: integer }
         proveedor: { type: string, enum: [osrm, google], description: Motor que calculó la ruta }
+        origen:
+          type: object
+          description: Bodega de salida
+          properties:
+            nombre: { type: string }
+            direccion: { type: string }
+            latitud: { type: number, format: double }
+            longitud: { type: number, format: double }
         paradas:
           type: array
           items:
@@ -914,7 +922,17 @@ components:
               pedido_id: { type: string, format: uuid }
               cliente: { type: string }
               direccion: { type: string }
+              latitud: { type: number, format: double }
+              longitud: { type: number, format: double }
               eta: { type: string, format: date-time }
+        trazo:
+          type: array
+          description: Recorrido por carretera como pares [latitud, longitud]; vacío si el motor no lo devuelve
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items: { type: number, format: double }
     DespachoNuevo:
       type: object
       required: [vehiculo_id, conductor_id, bodega_id, paradas]

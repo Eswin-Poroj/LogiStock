@@ -5,6 +5,7 @@ import { useSesion } from '../auth/sesion'
 import type { Despacho } from '../dominio/tipos'
 import { esUuid } from '../dominio/uuid'
 import { MenuDespachos } from './MenuDespachos'
+import { Encabezado } from '../navegacion/Encabezado'
 
 export function IniciarDespacho() {
   const { token } = useSesion()
@@ -32,17 +33,20 @@ export function IniciarDespacho() {
   }
 
   return (
-    <section className="pantalla">
-      <MenuDespachos />
-      <h1>Iniciar despacho</h1>
-      {error && <AvisoApi error={error} />}
-      <label>
-        Despacho
-        <input value={despachoId} onChange={(evento) => setDespachoId(evento.target.value)} />
-      </label>
-      {despacho?.paradas.map((parada) => <p key={parada.id}>Parada {parada.orden}</p>)}
-      {despacho && <p>Estado {despacho.estado}</p>}
-      <button type="button" className="boton-primario" disabled={!esUuid(despachoId)} onClick={() => void iniciar()}>Iniciar ruta</button>
+    <section className="pantalla pantalla-ficha">
+      <Encabezado titulo="Iniciar despacho">
+        <MenuDespachos />
+      </Encabezado>
+      <div className="ficha">
+        {error && <AvisoApi error={error} />}
+        <label>
+          Despacho
+          <input value={despachoId} onChange={(evento) => setDespachoId(evento.target.value)} />
+        </label>
+        {despacho?.paradas.map((parada) => <p key={parada.id}>Parada {parada.orden}</p>)}
+        {despacho && <p>Estado {despacho.estado}</p>}
+        <button type="button" className="boton-primario" disabled={!esUuid(despachoId)} onClick={() => void iniciar()}>Iniciar ruta</button>
+      </div>
     </section>
   )
 }

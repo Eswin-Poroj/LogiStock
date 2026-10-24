@@ -7,6 +7,7 @@ import type { Bodega, EntradaNueva, Producto, Recepcion } from '../dominio/tipos
 import { esUuid } from '../dominio/uuid'
 import { accesoDe } from '../navegacion/modulos'
 import { MenuInventario } from './MenuInventario'
+import { Encabezado } from '../navegacion/Encabezado'
 
 export function FormularioEntrada() {
   const { token, usuario } = useSesion()
@@ -37,35 +38,38 @@ export function FormularioEntrada() {
   }
 
   return (
-    <section className="pantalla">
-      <MenuInventario escritura />
-      <h1>Entrada</h1>
-      {(listaError || error) && <AvisoApi error={(listaError ?? error) as ApiError} />}
-      <label>
-        Proveedor
-        <input value={proveedorId} onChange={(evento) => setProveedorId(evento.target.value)} />
-      </label>
-      <label>
-        Bodega
-        <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
-          <option value="">Selecciona</option>
-          {bodegas.items.map((bodega) => <option key={bodega.id} value={bodega.id}>{bodega.nombre}</option>)}
-        </select>
-      </label>
-      <label>
-        Producto
-        <select value={productoId} onChange={(evento) => setProductoId(evento.target.value)}>
-          <option value="">Selecciona</option>
-          {productos.items.map((producto) => <option key={producto.id} value={producto.id}>{producto.nombre}</option>)}
-        </select>
-      </label>
-      <label>
-        Cantidad
-        <input type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} />
-      </label>
-      <button type="button" className="boton-primario" disabled={!listo} onClick={() => void enviar()}>Registrar entrada</button>
-      {recepcion && <p className="nota-ok">Recepción {recepcion.codigo}</p>}
-      {recepcion && <p>Estado {recepcion.estado}</p>}
+    <section className="pantalla pantalla-ficha">
+      <Encabezado titulo="Entrada">
+        <MenuInventario escritura />
+      </Encabezado>
+      <div className="ficha">
+        {(listaError || error) && <AvisoApi error={(listaError ?? error) as ApiError} />}
+        <label>
+          Proveedor
+          <input value={proveedorId} onChange={(evento) => setProveedorId(evento.target.value)} />
+        </label>
+        <label>
+          Bodega
+          <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
+            <option value="">Selecciona</option>
+            {bodegas.items.map((bodega) => <option key={bodega.id} value={bodega.id}>{bodega.nombre}</option>)}
+          </select>
+        </label>
+        <label>
+          Producto
+          <select value={productoId} onChange={(evento) => setProductoId(evento.target.value)}>
+            <option value="">Selecciona</option>
+            {productos.items.map((producto) => <option key={producto.id} value={producto.id}>{producto.nombre}</option>)}
+          </select>
+        </label>
+        <label>
+          Cantidad
+          <input type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} />
+        </label>
+        <button type="button" className="boton-primario" disabled={!listo} onClick={() => void enviar()}>Registrar entrada</button>
+        {recepcion && <p className="nota-ok">Recepción {recepcion.codigo}</p>}
+        {recepcion && <p>Estado {recepcion.estado}</p>}
+      </div>
     </section>
   )
 }

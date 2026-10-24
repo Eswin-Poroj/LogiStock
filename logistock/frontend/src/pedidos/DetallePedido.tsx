@@ -6,6 +6,7 @@ import { useSesion } from '../auth/sesion'
 import { quetzales } from '../dominio/quetzales'
 import type { Pedido } from '../dominio/tipos'
 import { etiquetaEstadoPedido, notaEstadoPedido, puedeCancelarPedido } from './estadosPedido'
+import { Encabezado } from '../navegacion/Encabezado'
 
 export function DetallePedido() {
   const { id } = useParams()
@@ -35,34 +36,36 @@ export function DetallePedido() {
   if (!pedido) return error ? <AvisoApi error={error} /> : null
 
   return (
-    <section className="pantalla">
-      <h1>Pedido {pedido.numero}</h1>
-      <p>{pedido.cliente}</p>
-      <p className="estado-pedido">{etiquetaEstadoPedido(pedido.estado)}</p>
-      <p>{notaEstadoPedido(pedido.estado)}</p>
-      {error && <AvisoApi error={error} />}
-      <div className="tabla-contenedor">
-        <table>
-          <tbody>
-            {pedido.lineas.map((linea) => (
-              <tr key={linea.id}>
-                <td>{linea.sku}</td>
-                <td>{linea.nombre}</td>
-                <td>{linea.cantidad}</td>
-                <td>{linea.estado}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <section className="pantalla pantalla-ficha">
+      <Encabezado titulo={`Pedido ${pedido.numero}`} />
+      <div className="ficha">
+        <p>{pedido.cliente}</p>
+        <p className="estado-pedido">{etiquetaEstadoPedido(pedido.estado)}</p>
+        <p>{notaEstadoPedido(pedido.estado)}</p>
+        {error && <AvisoApi error={error} />}
+        <div className="tabla-contenedor">
+          <table>
+            <tbody>
+              {pedido.lineas.map((linea) => (
+                <tr key={linea.id}>
+                  <td>{linea.sku}</td>
+                  <td>{linea.nombre}</td>
+                  <td>{linea.cantidad}</td>
+                  <td>{linea.estado}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <aside className="resumen-caja">
+          <p>Subtotal {quetzales(pedido.subtotal)}</p>
+          <p>IVA {quetzales(pedido.iva)}</p>
+          <p>Total {quetzales(pedido.total)}</p>
+          {usuario && puedeCancelarPedido(usuario.rol, pedido.estado) && (
+            <button type="button" className="boton-alerta" onClick={() => void cancelar()}>Cancelar pedido</button>
+          )}
+        </aside>
       </div>
-      <aside className="resumen-caja">
-        <p>Subtotal {quetzales(pedido.subtotal)}</p>
-        <p>IVA {quetzales(pedido.iva)}</p>
-        <p>Total {quetzales(pedido.total)}</p>
-        {usuario && puedeCancelarPedido(usuario.rol, pedido.estado) && (
-          <button type="button" className="boton-alerta" onClick={() => void cancelar()}>Cancelar pedido</button>
-        )}
-      </aside>
     </section>
   )
 }
