@@ -43,7 +43,7 @@ export function FormularioAjuste() {
   }
 
   return (
-    <section>
+    <section className="pantalla">
       <MenuInventario escritura />
       <h1>Ajuste</h1>
       {error && <AvisoApi error={error} />}
@@ -63,7 +63,7 @@ export function FormularioAjuste() {
         Motivo
         <input value={motivo} onChange={(evento) => setMotivo(evento.target.value)} />
       </label>
-      <button type="button" disabled={!listo} onClick={() => void enviar()}>Registrar ajuste</button>
+      <button type="button" className="boton-primario" disabled={!listo} onClick={() => void enviar()}>Registrar ajuste</button>
       {movimiento && <p>Movimiento {movimiento.id}</p>}
       {movimiento && <p>Cantidad {movimiento.cantidad}</p>}
     </section>

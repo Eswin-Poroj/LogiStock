@@ -35,30 +35,34 @@ export function DetallePedido() {
   if (!pedido) return error ? <AvisoApi error={error} /> : null
 
   return (
-    <section>
+    <section className="pantalla">
       <h1>Pedido {pedido.numero}</h1>
       <p>{pedido.cliente}</p>
-      <p>{etiquetaEstadoPedido(pedido.estado)}</p>
+      <p className="estado-pedido">{etiquetaEstadoPedido(pedido.estado)}</p>
       <p>{notaEstadoPedido(pedido.estado)}</p>
       {error && <AvisoApi error={error} />}
-      <table>
-        <tbody>
-          {pedido.lineas.map((linea) => (
-            <tr key={linea.id}>
-              <td>{linea.sku}</td>
-              <td>{linea.nombre}</td>
-              <td>{linea.cantidad}</td>
-              <td>{linea.estado}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p>Subtotal {quetzales(pedido.subtotal)}</p>
-      <p>IVA {quetzales(pedido.iva)}</p>
-      <p>Total {quetzales(pedido.total)}</p>
-      {usuario && puedeCancelarPedido(usuario.rol, pedido.estado) && (
-        <button type="button" onClick={() => void cancelar()}>Cancelar pedido</button>
-      )}
+      <div className="tabla-contenedor">
+        <table>
+          <tbody>
+            {pedido.lineas.map((linea) => (
+              <tr key={linea.id}>
+                <td>{linea.sku}</td>
+                <td>{linea.nombre}</td>
+                <td>{linea.cantidad}</td>
+                <td>{linea.estado}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <aside className="resumen-caja">
+        <p>Subtotal {quetzales(pedido.subtotal)}</p>
+        <p>IVA {quetzales(pedido.iva)}</p>
+        <p>Total {quetzales(pedido.total)}</p>
+        {usuario && puedeCancelarPedido(usuario.rol, pedido.estado) && (
+          <button type="button" className="boton-alerta" onClick={() => void cancelar()}>Cancelar pedido</button>
+        )}
+      </aside>
     </section>
   )
 }

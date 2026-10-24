@@ -69,55 +69,67 @@ export function FormularioDespacho() {
   }
 
   return (
-    <section>
+    <section className="pantalla">
       <MenuDespachos />
       <h1>Planificar despacho y ruta</h1>
       {(listaError || error) && <AvisoApi error={(listaError ?? error) as ApiError} />}
-      <h2>Pedidos listos para despacho</h2>
-      {pedidos.length === 0 && <p>No hay pedidos en preparación.</p>}
-      {pedidos.map((pedido) => (
-        <label key={pedido.id}>
-          <input type="checkbox" checked={marcados.includes(pedido.id)} onChange={() => alternar(pedido.id)} />
-          {pedido.numero} {pedido.cliente}
-        </label>
-      ))}
-      <label>
-        Vehículo
-        <select value={vehiculoId} onChange={(evento) => setVehiculoId(evento.target.value)}>
-          <option value="">Selecciona</option>
-          {vehiculos.items.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}</option>)}
-        </select>
-      </label>
-      <label>
-        Conductor
-        <select value={conductorId} onChange={(evento) => setConductorId(evento.target.value)}>
-          <option value="">Selecciona</option>
-          {conductores.items.map((conductor) => <option key={conductor.id} value={conductor.id}>{conductor.nombre}</option>)}
-        </select>
-      </label>
-      <label>
-        Bodega
-        <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
-          <option value="">Selecciona</option>
-          {bodegas.items.map((bodega) => <option key={bodega.id} value={bodega.id}>{bodega.nombre}</option>)}
-        </select>
-      </label>
-      <button type="button" disabled={!esUuid(bodegaId) || marcados.length === 0} onClick={() => void calcular()}>Calcular ruta</button>
-      <section aria-label="Ruta propuesta">
-        <h2>Ruta propuesta</h2>
-        <button type="button" disabled={!esUuid(bodegaId) || marcados.length === 0} onClick={() => void calcular()}>Recalcular ruta</button>
-        {ruta && <p>{ruta.distancia_km} km</p>}
-        {ruta && <p>{textoDuracion(ruta.duracion_min)}</p>}
-        {ruta && <p>{ruta.paradas.length}</p>}
-        {ruta && <p>Motor: {ruta.proveedor}</p>}
-        {ruta?.paradas.map((parada) => (
-          <p key={parada.pedido_id}>{parada.orden} <span>{parada.cliente}</span> {parada.direccion} <span>{parada.eta}</span></p>
-        ))}
-      </section>
-      <button type="button" disabled={!listo} onClick={() => void asignar()}>Asignar despacho</button>
-      {despacho && <p>Despacho {despacho.codigo}</p>}
-      {despacho && <p>Estado {despacho.estado}</p>}
-      {despacho && <p>Los pedidos de las paradas pasan a Despachado.</p>}
+      <div className="despacho-rejilla">
+        <div>
+          <h2>Pedidos listos para despacho</h2>
+          {pedidos.length === 0 && <p>No hay pedidos en preparación.</p>}
+          <div className="lista-marcas">
+            {pedidos.map((pedido) => (
+              <label key={pedido.id}>
+                <input type="checkbox" checked={marcados.includes(pedido.id)} onChange={() => alternar(pedido.id)} />
+                {pedido.numero} {pedido.cliente}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="filtros">
+            <label>
+              Vehículo
+              <select value={vehiculoId} onChange={(evento) => setVehiculoId(evento.target.value)}>
+                <option value="">Selecciona</option>
+                {vehiculos.items.map((vehiculo) => <option key={vehiculo.id} value={vehiculo.id}>{vehiculo.nombre}</option>)}
+              </select>
+            </label>
+            <label>
+              Conductor
+              <select value={conductorId} onChange={(evento) => setConductorId(evento.target.value)}>
+                <option value="">Selecciona</option>
+                {conductores.items.map((conductor) => <option key={conductor.id} value={conductor.id}>{conductor.nombre}</option>)}
+              </select>
+            </label>
+            <label>
+              Bodega
+              <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
+                <option value="">Selecciona</option>
+                {bodegas.items.map((bodega) => <option key={bodega.id} value={bodega.id}>{bodega.nombre}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="acciones-despacho">
+            <button type="button" disabled={!esUuid(bodegaId) || marcados.length === 0} onClick={() => void calcular()}>Calcular ruta</button>
+          </div>
+          <section className="ruta-panel" aria-label="Ruta propuesta">
+            <h2>Ruta propuesta</h2>
+            <button type="button" disabled={!esUuid(bodegaId) || marcados.length === 0} onClick={() => void calcular()}>Recalcular ruta</button>
+            {ruta && <p>{ruta.distancia_km} km</p>}
+            {ruta && <p>{textoDuracion(ruta.duracion_min)}</p>}
+            {ruta && <p>{ruta.paradas.length}</p>}
+            {ruta && <p>Motor: {ruta.proveedor}</p>}
+            {ruta?.paradas.map((parada) => (
+              <p className="parada" key={parada.pedido_id}>{parada.orden} <span>{parada.cliente}</span> {parada.direccion} <span>{parada.eta}</span></p>
+            ))}
+          </section>
+          <button type="button" className="boton-primario" disabled={!listo} onClick={() => void asignar()}>Asignar despacho</button>
+          {despacho && <p className="nota-ok">Despacho {despacho.codigo}</p>}
+          {despacho && <p>Estado {despacho.estado}</p>}
+          {despacho && <p>Los pedidos de las paradas pasan a Despachado.</p>}
+        </div>
+      </div>
     </section>
   )
 }

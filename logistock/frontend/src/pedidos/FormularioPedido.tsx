@@ -155,8 +155,10 @@ export function FormularioPedido() {
   return (
     <section className="panel panel-pedido">
       <header className="panel-encabezado">
-        <h1>Nuevo pedido de venta</h1>
-        <button type="button" onClick={cancelarBorrador}>Cancelar</button>
+        <div className="encabezado-fila">
+          <h1>Nuevo pedido de venta</h1>
+          <button type="button" onClick={cancelarBorrador}>Cancelar</button>
+        </div>
         <p className="panel-subtitulo">Cotización con validación de stock en la bodega seleccionada (CU-01 / CU-02).</p>
       </header>
       {errorLista && <AvisoApi error={errorLista} />}
@@ -165,6 +167,9 @@ export function FormularioPedido() {
         <p role="alert" className="aviso-api aviso-api--error">{avisoStock409(errorConfirmacion)}</p>
       )}
       <form className="formulario-pedido" onSubmit={(evento) => evento.preventDefault()}>
+        <div className="pedido-cuerpo">
+        <div className="pedido-lineas">
+        <div className="pedido-datos">
         <label>
           Cliente
           <select value={clienteId} onChange={(evento) => setClienteId(evento.target.value)}>
@@ -183,6 +188,8 @@ export function FormularioPedido() {
             {bodegas.items.map((fila) => <option key={fila.id} value={fila.id}>{fila.nombre}</option>)}
           </select>
         </label>
+        </div>
+        <div className="tabla-contenedor">
         <table>
           <thead>
             <tr>
@@ -213,7 +220,7 @@ export function FormularioPedido() {
                   <td>{linea.disponible ?? ''}</td>
                   <td>{quetzales(linea.precio_unitario)}</td>
                   <td>{quetzales(subtotal)}</td>
-                  <td>
+                  <td className={reservable ? 'estado-ok' : 'estado-alerta'}>
                     {reservable && 'Reservable'}
                     {!reservable && linea.resolucion === 'backorder' && 'Backorder'}
                     {!reservable && linea.resolucion !== 'backorder' && 'Stock insuficiente'}
@@ -224,6 +231,7 @@ export function FormularioPedido() {
             })}
           </tbody>
         </table>
+        </div>
         {lineas.filter((linea) => !lineaReservable(linea)).map((linea) => (
           <div key={linea.producto_id} className="aviso-faltante" role="status">
             <p>{`${linea.sku}: solo hay ${linea.disponible ?? ''} de ${linea.cantidad} unidades en ${bodega?.nombre ?? 'la bodega'}`}</p>
@@ -252,6 +260,7 @@ export function FormularioPedido() {
             )}
           </div>
         ))}
+        <div className="pedido-busqueda">
         <label>
           Buscar por SKU o nombre
           <input value={busqueda} onChange={(evento) => setBusqueda(evento.target.value)} />
@@ -267,7 +276,9 @@ export function FormularioPedido() {
         )}
         {avisoBusqueda && <p role="status">{avisoBusqueda}</p>}
         <button type="button" disabled={busqueda.trim() === '' || !esUuid(bodegaId)} onClick={() => void agregar()}>Agregar línea</button>
-        <aside>
+        </div>
+        </div>
+        <aside className="resumen-caja">
           <h2>Resumen</h2>
           <p>Líneas confirmadas <span>{resumen.confirmadas} de {resumen.totalLineas}</span></p>
           <p>Subtotal <span>{quetzales(resumen.subtotal)}</span></p>
@@ -276,9 +287,10 @@ export function FormularioPedido() {
           <button type="button" className="boton-primario" disabled={!valido} onClick={() => void confirmar()}>Confirmar pedido</button>
           <button type="button" onClick={() => setAvisoCotizacion('La API no guarda cotizaciones. Confirma el pedido para reservar el stock.')}>Guardar como cotización</button>
           {avisoCotizacion && <p role="status">{avisoCotizacion}</p>}
-          <p>Las líneas sin stock no se incluyen en el total ni se reservan.</p>
+          <p className="nota-resumen">Las líneas sin stock no se incluyen en el total ni se reservan.</p>
         </aside>
-        <section>
+        </div>
+        <section className="pedido-pasos">
           <h2>Qué pasa al confirmar</h2>
           <ol>
             <li>Se bloquea cada SKU por bodega para evitar que otro asesor reserve el mismo stock.</li>

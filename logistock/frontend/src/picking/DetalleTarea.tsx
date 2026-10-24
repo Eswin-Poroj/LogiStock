@@ -65,21 +65,21 @@ export function DetalleTarea({ tareaId, lectura, onActualizada }: { tareaId: str
 
   if (!tareaId) return null
   return (
-    <section>
+    <section className="detalle-tarea">
       {error && <AvisoApi error={error} />}
-      {tarea && <p>{etiquetaEstadoPicking(tarea.estado)}</p>}
+      {tarea && <p className="estado-pedido">{etiquetaEstadoPicking(tarea.estado)}</p>}
       {tarea && <p>{NOTA[tarea.estado]}</p>}
       {tarea?.lineas.map((linea) => (
-        <p key={linea.pedido_linea_id}><span>{linea.sku}</span> {linea.nombre} {linea.ubicacion ?? ''} <span>{linea.cantidad_recogida} / {linea.cantidad}</span></p>
+        <p className="linea-pick" key={linea.pedido_linea_id}><span className="sku">{linea.sku}</span> {linea.nombre} {linea.ubicacion ?? ''} <span className="conteo">{linea.cantidad_recogida} / {linea.cantidad}</span></p>
       ))}
       {!lectura && (
-        <>
+        <div className="controles-escaneo">
           <label>SKU<input value={sku} onChange={(evento) => setSku(evento.target.value)} /></label>
           <label>Cantidad<input type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} /></label>
-          <button type="button" onClick={() => void escanear()}>Confirmar escaneo</button>
-          <button type="button" onClick={() => void cerrar(true)}>Reportar faltante</button>
-          <button type="button" disabled={!lista} onClick={() => void cerrar(false)}>Marcar como listo para despacho</button>
-        </>
+          <button type="button" className="boton-confirmar" onClick={() => void escanear()}>Confirmar escaneo</button>
+          <button type="button" className="boton-alerta" onClick={() => void cerrar(true)}>Reportar faltante</button>
+          <button type="button" className="boton-primario" disabled={!lista} onClick={() => void cerrar(false)}>Marcar como listo para despacho</button>
+        </div>
       )}
     </section>
   )

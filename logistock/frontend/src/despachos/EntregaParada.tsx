@@ -34,7 +34,7 @@ export function EntregaParada() {
   const pendientes = despacho?.paradas.filter((parada) => !parada.entregada_at) ?? []
 
   return (
-    <section>
+    <section className="pantalla">
       <MenuDespachos />
       <h1>Entrega</h1>
       {error && <AvisoApi error={error} />}
@@ -43,13 +43,13 @@ export function EntregaParada() {
         <input value={despachoId} onChange={(evento) => setDespachoId(evento.target.value)} />
       </label>
       {pendientes.map((parada) => (
-        <button key={parada.id} type="button" onClick={() => void entregar(parada.id)}>
+        <button className="boton-confirmar" key={parada.id} type="button" onClick={() => void entregar(parada.id)}>
           {pendientes.length === 1 ? 'Confirmar entrega' : `Confirmar entrega ${parada.orden}`}
         </button>
       ))}
       {despacho && <p>Despacho {despacho.codigo}</p>}
       {despacho && <p>Estado {despacho.estado}</p>}
-      {despacho?.estado === 'finalizado' && <p>Despacho finalizado</p>}
+      {despacho?.estado === 'finalizado' && <p className="nota-ok">Despacho finalizado</p>}
       {despacho?.paradas.map((parada) => parada.entregada_at ? <p key={parada.id}>Entregada {parada.entregada_at}</p> : <p key={parada.id}>Parada {parada.orden}</p>)}
     </section>
   )

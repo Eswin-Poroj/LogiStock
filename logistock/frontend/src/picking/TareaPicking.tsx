@@ -21,7 +21,7 @@ export function TareaPicking() {
   }
 
   return (
-    <section>
+    <section className="pantalla">
       <MenuPicking />
       <h1>Tarea de picking</h1>
       {lectura && <p>Picking es de solo lectura para tu rol.</p>}
@@ -32,7 +32,7 @@ export function TareaPicking() {
             Tarea
             <input value={tareaEscrita} onChange={(evento) => setTareaEscrita(evento.target.value)} />
           </label>
-          <button type="submit">Abrir</button>
+          <button type="submit" className="boton-primario">Abrir</button>
         </form>
       )}
       <DetalleTarea tareaId={id} lectura={lectura} onActualizada={() => undefined} />

@@ -32,7 +32,7 @@ export function IniciarDespacho() {
   }
 
   return (
-    <section>
+    <section className="pantalla">
       <MenuDespachos />
       <h1>Iniciar despacho</h1>
       {error && <AvisoApi error={error} />}
@@ -42,7 +42,7 @@ export function IniciarDespacho() {
       </label>
       {despacho?.paradas.map((parada) => <p key={parada.id}>Parada {parada.orden}</p>)}
       {despacho && <p>Estado {despacho.estado}</p>}
-      <button type="button" disabled={!esUuid(despachoId)} onClick={() => void iniciar()}>Iniciar ruta</button>
+      <button type="button" className="boton-primario" disabled={!esUuid(despachoId)} onClick={() => void iniciar()}>Iniciar ruta</button>
     </section>
   )
 }

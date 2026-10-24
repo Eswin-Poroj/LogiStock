@@ -54,11 +54,12 @@ export function InventarioBodega() {
   }
 
   return (
-    <section>
+    <section className="pantalla">
       <MenuInventario escritura={escritura} />
       <h1>Inventario por bodega</h1>
       {bodegas.error && <AvisoApi error={bodegas.error} />}
       {error && <AvisoApi error={error} />}
+      <div className="filtros">
       <label>
         Bodega
         <select value={bodegaId} onChange={(evento) => setBodegaId(evento.target.value)}>
@@ -79,8 +80,9 @@ export function InventarioBodega() {
           <option value="agotado">Agotado</option>
         </select>
       </label>
+      </div>
       {datos && (
-        <div>
+        <div className="indicadores">
           <section aria-label="Disponible"><h2>Disponible</h2><p>{datos.totales.disponible}</p><p>unidades</p></section>
           <section aria-label="Reservado"><h2>Reservado</h2><p>{datos.totales.reservado}</p><p>por pedidos activos</p></section>
           <section aria-label="En tránsito"><h2>En tránsito</h2><p>{datos.totales.en_transito}</p><p>hacia la bodega</p></section>
@@ -91,6 +93,7 @@ export function InventarioBodega() {
       {datos && datos.items.length === 0 && (
         <button type="button" onClick={() => { setQ(''); setEstado('') }}>Limpiar filtros</button>
       )}
+      <div className="inventario-cuerpo">
       <div className="tabla-contenedor">
         <table>
           <thead>
@@ -114,11 +117,11 @@ export function InventarioBodega() {
         </table>
       </div>
       {seleccionado && (
-        <aside>
+        <aside className="ficha-sku">
           <h2>{seleccionado.sku}</h2>
           <p>{seleccionado.nombre}</p>
           <p>Ubicación {seleccionado.ubicacion}</p>
-          <ul>
+          <ul className="movimientos">
             {movimientos.map((movimiento) => (
               <li key={movimiento.id}>
                 <span>{ETIQUETA_MOVIMIENTO[movimiento.tipo]}</span>
@@ -136,6 +139,7 @@ export function InventarioBodega() {
           )}
         </aside>
       )}
+      </div>
     </section>
   )
 }

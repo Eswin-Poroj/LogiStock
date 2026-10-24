@@ -52,24 +52,26 @@ export function TableroPicking() {
   ]
 
   return (
-    <section>
+    <section className="pantalla">
       <MenuPicking />
       <h1>Preparación de pedidos</h1>
       {error && <AvisoApi error={error} />}
       <div className="columnas-pedido">
         {columnas.map((columna) => (
           <section key={columna.id} aria-label={tituloColumna(columna.id)}>
-            <h2>{tituloColumna(columna.id)}</h2>
-            <p>{columna.tareas.length + columna.pedidos.length}</p>
+            <header className="columna-encabezado">
+              <h2>{tituloColumna(columna.id)}</h2>
+              <p className="cuenta">{columna.tareas.length + columna.pedidos.length}</p>
+            </header>
             {columna.tareas.map((tarea) => (
-              <article key={tarea.id}>
+              <article key={tarea.id} className="tarjeta-tarea">
                 <Link to={`/picking/tarea?id=${tarea.id}`}>{tarea.numero_pedido ?? tarea.pedido_id}</Link>
                 <button type="button" onClick={() => setTareaId(tarea.id)}>Abrir</button>
                 {tarea.cliente && <p>{tarea.cliente}</p>}
               </article>
             ))}
             {columna.pedidos.map((pedido) => (
-              <article key={pedido.id}>
+              <article key={pedido.id} className="tarjeta-tarea">
                 <p>{pedido.numero}</p>
                 <p>{pedido.cliente}</p>
                 <p>{quetzales(pedido.total)}</p>

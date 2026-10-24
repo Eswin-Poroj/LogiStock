@@ -39,7 +39,7 @@ export function FormularioDanio() {
   }
 
   return (
-    <section>
+    <section className="pantalla">
       <MenuInventario escritura />
       <h1>Daño</h1>
       {(listaError || error) && <AvisoApi error={(listaError ?? error) as ApiError} />}
@@ -65,7 +65,7 @@ export function FormularioDanio() {
         Motivo
         <input value={motivo} onChange={(evento) => setMotivo(evento.target.value)} />
       </label>
-      <button type="button" disabled={!listo} onClick={() => void enviar()}>Registrar daño</button>
+      <button type="button" className="boton-primario" disabled={!listo} onClick={() => void enviar()}>Registrar daño</button>
       {movimiento && <p>Movimiento {movimiento.id}</p>}
       {movimiento && <p>Cantidad {movimiento.cantidad}</p>}
     </section>

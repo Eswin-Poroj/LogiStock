@@ -37,7 +37,7 @@ export function FormularioEntrada() {
   }
 
   return (
-    <section>
+    <section className="pantalla">
       <MenuInventario escritura />
       <h1>Entrada</h1>
       {(listaError || error) && <AvisoApi error={(listaError ?? error) as ApiError} />}
@@ -63,8 +63,8 @@ export function FormularioEntrada() {
         Cantidad
         <input type="number" min={1} value={cantidad} onChange={(evento) => setCantidad(Number(evento.target.value))} />
       </label>
-      <button type="button" disabled={!listo} onClick={() => void enviar()}>Registrar entrada</button>
-      {recepcion && <p>Recepción {recepcion.codigo}</p>}
+      <button type="button" className="boton-primario" disabled={!listo} onClick={() => void enviar()}>Registrar entrada</button>
+      {recepcion && <p className="nota-ok">Recepción {recepcion.codigo}</p>}
       {recepcion && <p>Estado {recepcion.estado}</p>}
     </section>
   )

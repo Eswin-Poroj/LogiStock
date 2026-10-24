@@ -1,10 +1,10 @@
-import { Link } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 
 export function MenuPicking() {
   return (
-    <nav aria-label="Picking">
-      <Link to="/picking">Tablero</Link>
-      <Link to="/picking/tarea">Tarea</Link>
+    <nav className="subnav" aria-label="Picking">
+      <NavLink to="/picking" end>Tablero</NavLink>
+      <NavLink to="/picking/tarea">Tarea</NavLink>
     </nav>
   )
 }
